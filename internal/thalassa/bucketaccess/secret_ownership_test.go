@@ -24,6 +24,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/thalassa-cloud/client-go/iam"
+
 	objectstoragev1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/api/v1"
 )
 
@@ -74,6 +76,49 @@ func TestSecretOwnedBy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, secretOwnedBy(obj, tt.secret))
+		})
+	}
+}
+
+func TestServiceAccountOwnedBy(t *testing.T) {
+	obj := &objectstoragev1.BucketAccess{
+		ObjectMeta: metav1.ObjectMeta{Name: "access", Namespace: "app"},
+	}
+	tests := []struct {
+		name string
+		sa   *iam.ServiceAccount
+		want bool
+	}{
+		{name: "nil sa", sa: nil, want: false},
+		{name: "no labels", sa: &iam.ServiceAccount{Identity: "sa-1"}, want: false},
+		{
+			name: "owned",
+			sa: &iam.ServiceAccount{
+				Identity: "sa-1",
+				Labels:   map[string]string{ownershipLabelKey: "app.access"},
+			},
+			want: true,
+		},
+		{
+			name: "external principal leftover in status",
+			sa: &iam.ServiceAccount{
+				Identity: "external-sa",
+				Labels:   map[string]string{"team": "platform"},
+			},
+			want: false,
+		},
+		{
+			name: "wrong owner",
+			sa: &iam.ServiceAccount{
+				Identity: "sa-2",
+				Labels:   map[string]string{ownershipLabelKey: "other.access"},
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, serviceAccountOwnedBy(obj, tt.sa))
 		})
 	}
 }

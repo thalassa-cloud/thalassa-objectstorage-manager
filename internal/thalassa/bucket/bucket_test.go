@@ -69,6 +69,59 @@ func TestEffectiveBucketName(t *testing.T) {
 	}
 }
 
+func TestProvisionedBucketName(t *testing.T) {
+	falseVal := false
+	trueVal := true
+	tests := []struct {
+		name    string
+		obj     *objectstoragev1.Bucket
+		want    string
+		wantOK  bool
+	}{
+		{
+			name:   "status bucket name wins",
+			obj:    &objectstoragev1.Bucket{Status: objectstoragev1.BucketStatus{BucketName: "logs-a1b2c3"}},
+			want:   "logs-a1b2c3",
+			wantOK: true,
+		},
+		{
+			name: "empty status with suffix enabled refuses base name",
+			obj: &objectstoragev1.Bucket{
+				ObjectMeta: metav1.ObjectMeta{Name: "logs"},
+				Spec:       objectstoragev1.BucketSpec{Name: "logs", GenerateNameSuffix: &trueVal},
+			},
+			want:   "",
+			wantOK: false,
+		},
+		{
+			name: "empty status with suffix default (true) refuses base name",
+			obj: &objectstoragev1.Bucket{
+				ObjectMeta: metav1.ObjectMeta{Name: "logs"},
+				Spec:       objectstoragev1.BucketSpec{Name: "logs"},
+			},
+			want:   "",
+			wantOK: false,
+		},
+		{
+			name: "empty status with suffix disabled uses base name",
+			obj: &objectstoragev1.Bucket{
+				ObjectMeta: metav1.ObjectMeta{Name: "logs"},
+				Spec:       objectstoragev1.BucketSpec{Name: "logs", GenerateNameSuffix: &falseVal},
+			},
+			want:   "logs",
+			wantOK: true,
+		},
+		{name: "nil object", obj: nil, want: "", wantOK: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := provisionedBucketName(tt.obj)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestGenerateNameSuffixEnabled(t *testing.T) {
 	falseVal := false
 	trueVal := true

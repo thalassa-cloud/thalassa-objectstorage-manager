@@ -97,9 +97,11 @@ func (h *Handler) Reconcile(ctx context.Context, obj *objectstoragev1.Bucket) (c
 	if obj.Status.BucketName == "" && obj.Status.ResourceID == "" {
 		return h.createBucket(ctx, obj)
 	}
-	name := obj.Status.BucketName
-	if name == "" {
-		name = EffectiveBucketName(obj)
+	name, ok := provisionedBucketName(obj)
+	if !ok {
+		return h.setErrorCondition(ctx, obj, "BucketNameUnknown",
+			"status.bucketName is empty while generateNameSuffix is enabled; refusing to use the base name (it may identify a different bucket)",
+			fmt.Errorf("status.bucketName is required when generateNameSuffix is enabled"))
 	}
 	return h.reconcileBucket(ctx, obj, name)
 }
@@ -110,6 +112,23 @@ func EffectiveBucketName(obj *objectstoragev1.Bucket) string {
 		return obj.Spec.Name
 	}
 	return helpers.EffectiveName(obj.Name, obj.Spec.Metadata)
+}
+
+// provisionedBucketName returns the Thalassa bucket name known to belong to this CR.
+// When status.bucketName is empty and generateNameSuffix is enabled, the base name must
+// not be used: it can identify a different bucket in the organisation.
+func provisionedBucketName(obj *objectstoragev1.Bucket) (name string, ok bool) {
+	if obj == nil {
+		return "", false
+	}
+	if obj.Status.BucketName != "" {
+		return obj.Status.BucketName, true
+	}
+	if GenerateNameSuffixEnabled(obj) {
+		return "", false
+	}
+	n := EffectiveBucketName(obj)
+	return n, n != ""
 }
 
 // GenerateNameSuffixEnabled reports whether a random suffix should be appended on create.
@@ -443,16 +462,18 @@ func (h *Handler) Terminate(ctx context.Context, obj *objectstoragev1.Bucket) (c
 	if !controllerutil.ContainsFinalizer(obj, Finalizer) {
 		return ctrl.Result{}, nil
 	}
-	name := obj.Status.BucketName
-	if name == "" {
-		name = EffectiveBucketName(obj)
-	}
-	if name != "" {
+	name, ok := provisionedBucketName(obj)
+	if ok && name != "" {
 		if err := h.ObjectStorage.DeleteBucket(ctx, name); err != nil && !thalassaclient.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
 		log.Info("deleted bucket in Thalassa", "name", name)
 		h.Recorder.Eventf(obj, corev1.EventTypeNormal, "Deleted", "Deleted Thalassa bucket %s", name)
+	} else if !ok {
+		// Prefer orphaning an unknown remote bucket over deleting by base name.
+		log.Info("skipping remote bucket delete: status.bucketName empty with generateNameSuffix enabled")
+		h.Recorder.Eventf(obj, corev1.EventTypeWarning, "DeleteSkipped",
+			"Skipped Thalassa bucket delete because status.bucketName is empty and generateNameSuffix is enabled (base name may identify a different bucket)")
 	}
 	if controllerutil.RemoveFinalizer(obj, Finalizer) {
 		if err := h.Client.Update(ctx, obj); err != nil {

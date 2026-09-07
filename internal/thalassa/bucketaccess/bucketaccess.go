@@ -266,9 +266,12 @@ func (h *Handler) resolveBuckets(ctx context.Context, obj *objectstoragev1.Bucke
 }
 
 func (h *Handler) ensureServiceAccount(ctx context.Context, obj *objectstoragev1.BucketAccess) (string, error) {
+	// Only reuse status.serviceAccountId when the IAM SA carries our ownership label.
+	// External principalRef also populates status.serviceAccountId; reusing it in managed
+	// mode would mint credentials on—and later delete—an org SA we do not own.
 	if obj.Status.ServiceAccountID != "" {
 		sa, err := h.IAM.GetServiceAccount(ctx, obj.Status.ServiceAccountID)
-		if err == nil && sa != nil {
+		if err == nil && sa != nil && serviceAccountOwnedBy(obj, sa) {
 			return sa.Identity, nil
 		}
 		if err != nil && !thalassaclient.IsNotFound(err) {
@@ -289,7 +292,7 @@ func (h *Handler) ensureServiceAccount(ctx context.Context, obj *objectstoragev1
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	labels[ownershipLabelKey] = fmt.Sprintf("%s.%s", obj.Namespace, obj.Name)
+	labels[ownershipLabelKey] = ownershipLabelValue(obj)
 
 	created, err := h.IAM.CreateServiceAccount(ctx, iam.CreateServiceAccountRequest{
 		Name:        name,
@@ -302,6 +305,18 @@ func (h *Handler) ensureServiceAccount(ctx context.Context, obj *objectstoragev1
 	}
 	h.Recorder.Eventf(obj, corev1.EventTypeNormal, "ServiceAccountCreated", "Created Thalassa IAM service account %s", created.Identity)
 	return created.Identity, nil
+}
+
+func ownershipLabelValue(obj metav1.Object) string {
+	return fmt.Sprintf("%s.%s", obj.GetNamespace(), obj.GetName())
+}
+
+// serviceAccountOwnedBy reports whether the Thalassa IAM SA was created for this BucketAccess.
+func serviceAccountOwnedBy(obj *objectstoragev1.BucketAccess, sa *iam.ServiceAccount) bool {
+	if obj == nil || sa == nil || sa.Labels == nil {
+		return false
+	}
+	return sa.Labels[ownershipLabelKey] == ownershipLabelValue(obj)
 }
 
 func (h *Handler) ensureAccessCredential(ctx context.Context, obj *objectstoragev1.BucketAccess, saID string) (accessKey, accessSecret, credID string, rotated bool, err error) {
@@ -469,7 +484,7 @@ func (h *Handler) writeSecret(ctx context.Context, obj *objectstoragev1.BucketAc
 		if secret.Labels == nil {
 			secret.Labels = map[string]string{}
 		}
-		secret.Labels[ownershipLabelKey] = fmt.Sprintf("%s.%s", obj.Namespace, obj.Name)
+		secret.Labels[ownershipLabelKey] = ownershipLabelValue(obj)
 		return nil
 	})
 	return err
@@ -482,11 +497,8 @@ func secretOwnedBy(obj *objectstoragev1.BucketAccess, secret *corev1.Secret) boo
 		}
 	}
 	// Cross-namespace secrets use an ownership label instead of ownerRef.
-	if secret.Labels != nil {
-		want := fmt.Sprintf("%s.%s", obj.Namespace, obj.Name)
-		if secret.Labels[ownershipLabelKey] == want {
-			return true
-		}
+	if secret.Labels != nil && secret.Labels[ownershipLabelKey] == ownershipLabelValue(obj) {
+		return true
 	}
 	return false
 }
@@ -515,19 +527,30 @@ func (h *Handler) Terminate(ctx context.Context, obj *objectstoragev1.BucketAcce
 		}
 	}
 
-	// Only delete IAM credentials / service account in managed mode.
-	// External principals are never deleted by this controller.
-	if IsManagedMode(obj) {
-		if obj.Status.ServiceAccountID != "" && obj.Status.AccessCredentialID != "" {
-			if err := h.IAM.DeleteServiceAccountAccessCredentials(ctx, obj.Status.ServiceAccountID, obj.Status.AccessCredentialID); err != nil && !thalassaclient.IsNotFound(err) {
-				return ctrl.Result{}, err
-			}
+	// Only delete IAM credentials / service account in managed mode, and only when we
+	// own the SA (ownership label). Never delete an external principal's SA.
+	if IsManagedMode(obj) && obj.Status.ServiceAccountID != "" {
+		saID := obj.Status.ServiceAccountID
+		sa, err := h.IAM.GetServiceAccount(ctx, saID)
+		if err != nil && !thalassaclient.IsNotFound(err) {
+			return ctrl.Result{}, err
 		}
-		if obj.Status.ServiceAccountID != "" {
-			if err := h.IAM.DeleteServiceAccount(ctx, obj.Status.ServiceAccountID); err != nil && !thalassaclient.IsNotFound(err) {
+		if err == nil && sa != nil && serviceAccountOwnedBy(obj, sa) {
+			if obj.Status.AccessCredentialID != "" {
+				if err := h.IAM.DeleteServiceAccountAccessCredentials(ctx, saID, obj.Status.AccessCredentialID); err != nil && !thalassaclient.IsNotFound(err) {
+					return ctrl.Result{}, err
+				}
+			}
+			if err := h.IAM.DeleteServiceAccount(ctx, saID); err != nil && !thalassaclient.IsNotFound(err) {
 				return ctrl.Result{}, err
 			}
-			h.Recorder.Eventf(obj, corev1.EventTypeNormal, "ServiceAccountDeleted", "Deleted Thalassa IAM service account %s", obj.Status.ServiceAccountID)
+			h.Recorder.Eventf(obj, corev1.EventTypeNormal, "ServiceAccountDeleted", "Deleted Thalassa IAM service account %s", saID)
+		} else if err == nil && sa != nil {
+			log.Info("skipping IAM service account delete: not owned by this BucketAccess",
+				"serviceAccountId", saID)
+			h.Recorder.Eventf(obj, corev1.EventTypeWarning, "ServiceAccountDeleteSkipped",
+				"Refusing to delete Thalassa IAM service account %s: missing ownership label for %s/%s",
+				saID, obj.Namespace, obj.Name)
 		}
 	}
 
