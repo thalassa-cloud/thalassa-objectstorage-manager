@@ -1,0 +1,8 @@
+# Namespace for local smoke / permission verification samples.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: objectstorage-hack
+  labels:
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample

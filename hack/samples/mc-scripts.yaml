@@ -1,0 +1,113 @@
+# Scripts used by the mc client deployments to verify bucket permissions.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hack-demo-mc-scripts
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+data:
+  lib.sh: |
+    #!/bin/bash
+    # Shared helpers for verify-rw.sh / verify-ro.sh.
+    require() {
+      if [[ -z "${!1:-}" ]]; then
+        echo "missing required env: $1" >&2
+        exit 1
+      fi
+    }
+
+    # BucketAccess secrets store path-style URLs (https://host[:port]/bucket).
+    # mc alias set requires scheme://host[:port] with no resource path.
+    normalize_endpoint() {
+      case "$ENDPOINT" in
+        http://*|https://*) ;;
+        *) ENDPOINT="https://${ENDPOINT}" ;;
+      esac
+      local proto="${ENDPOINT%%://*}"
+      local rest="${ENDPOINT#*://}"
+      rest="${rest%%[?#]*}"
+      local hostport="${rest%%/*}"
+      if [[ -z "$hostport" ]]; then
+        echo "invalid ENDPOINT: missing host" >&2
+        exit 1
+      fi
+      ENDPOINT="${proto}://${hostport}"
+    }
+
+    setup_mc() {
+      require ACCESS_KEY
+      require SECRET_KEY
+      require ENDPOINT
+      require BUCKET
+      normalize_endpoint
+      echo "configuring mc alias (endpoint=${ENDPOINT}, bucket=${BUCKET})"
+      # --path on: Thalassa endpoints are path-style (host/bucket), not virtual-hosted.
+      mc alias set verify "$ENDPOINT" "$ACCESS_KEY" "$SECRET_KEY" --api S3v4 --path on >/dev/null
+    }
+
+  verify-rw.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    # shellcheck source=/dev/null
+    source /scripts/lib.sh
+    setup_mc
+
+    OBJ="hack/rw-$(hostname)-$(date +%s).txt"
+    PAYLOAD="objectstorage-hack rw verify $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    echo "put s3://${BUCKET}/${OBJ}"
+    printf '%s\n' "$PAYLOAD" | mc pipe "verify/${BUCKET}/${OBJ}"
+
+    echo "get s3://${BUCKET}/${OBJ}"
+    GOT="$(mc cat "verify/${BUCKET}/${OBJ}")"
+    if [[ "$GOT" != "$PAYLOAD" ]]; then
+      echo "content mismatch: got=${GOT}" >&2
+      exit 1
+    fi
+
+    echo "list s3://${BUCKET}/hack/"
+    mc ls "verify/${BUCKET}/hack/" >/dev/null
+
+    echo "rm s3://${BUCKET}/${OBJ}"
+    mc rm "verify/${BUCKET}/${OBJ}" >/dev/null
+
+    echo "OK: ReadWrite permissions verified on bucket ${BUCKET}"
+
+  verify-ro.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    # shellcheck source=/dev/null
+    source /scripts/lib.sh
+    setup_mc
+
+    echo "list s3://${BUCKET}/ (expect allow)"
+    mc ls "verify/${BUCKET}" >/dev/null
+
+    OBJ="hack/ro-denied-$(hostname)-$(date +%s).txt"
+    echo "put s3://${BUCKET}/${OBJ} (expect deny)"
+    if printf 'should-fail\n' | mc pipe "verify/${BUCKET}/${OBJ}" 2>/tmp/mc-ro-put.err; then
+      echo "ERROR: ReadOnly credential was allowed to put object" >&2
+      mc rm "verify/${BUCKET}/${OBJ}" >/dev/null 2>&1 || true
+      exit 1
+    fi
+    echo "put denied as expected:"
+    cat /tmp/mc-ro-put.err >&2 || true
+
+    echo "OK: ReadOnly permissions verified on bucket ${BUCKET}"
+
+  loop.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    SCRIPT="$1"
+    INTERVAL="${VERIFY_INTERVAL_SECONDS:-60}"
+    echo "starting verify loop: script=${SCRIPT} interval=${INTERVAL}s"
+    while true; do
+      if bash "$SCRIPT"; then
+        echo "verify succeeded at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      else
+        echo "verify failed at $(date -u +%Y-%m-%dT%H:%M:%SZ) (will retry)" >&2
+      fi
+      sleep "$INTERVAL"
+    done

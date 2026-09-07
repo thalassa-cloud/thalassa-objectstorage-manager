@@ -1,0 +1,14 @@
+{{- if gt (int .Values.replicaCount) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "objectstorageManager.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorageManager.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.minAvailable }}
+  selector:
+    matchLabels:
+    {{- include "objectstorageManager.selectorLabels" . | nindent 6 }}
+{{- end }}

@@ -1,0 +1,7 @@
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+USER 65532:65532
+EXPOSE 8081 8443
+
+COPY thalassa-objectstorage-manager /thalassa-objectstorage-manager
+ENTRYPOINT ["/thalassa-objectstorage-manager"]

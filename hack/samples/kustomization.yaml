@@ -1,0 +1,24 @@
+# Local smoke sample: Bucket + BucketAccess (RW/RO) + mc clients.
+#
+# Prerequisites: CRDs installed, objectstorage manager running against Thalassa.
+# If installed via Helm, include this namespace in Secret RBAC, e.g.:
+#   --set rbac.secretNamespaces={objectstorage-hack}
+#
+# Apply:
+#   kubectl apply -k hack/samples
+#
+# Watch credentials + clients:
+#   kubectl -n objectstorage-hack get bucket,bucketaccess,secret,deploy
+#   kubectl -n objectstorage-hack logs deploy/hack-demo-mc-rw -f
+#   kubectl -n objectstorage-hack logs deploy/hack-demo-mc-ro -f
+#
+# Tear down (does not delete the Thalassa bucket unless the Bucket CR finalizer runs):
+#   kubectl delete -k hack/samples
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - bucket.yaml
+  - bucketaccess.yaml
+  - mc-scripts.yaml
+  - mc-deployment.yaml

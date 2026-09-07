@@ -1,0 +1,17 @@
+# Demo bucket used by the mc verification clients.
+# generateNameSuffix defaults to true → Thalassa name becomes hack-demo-<random>.
+# Change spec.region (or omit it to use the manager --default-region).
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: Bucket
+metadata:
+  name: hack-demo
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+spec:
+  name: hack-demo
+  # generateNameSuffix: true  # default
+  region: nl-01
+  public: false
+  versioning: Disabled

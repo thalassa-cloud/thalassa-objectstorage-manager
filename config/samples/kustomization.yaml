@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- objectstorage_v1_bucket.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

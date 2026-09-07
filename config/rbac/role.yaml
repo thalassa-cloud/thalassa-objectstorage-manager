@@ -1,0 +1,42 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - bucketaccesses
+  - buckets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - bucketaccesses/finalizers
+  - buckets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - bucketaccesses/status
+  - buckets/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,35 @@
+# ReadWrite + ReadOnly access profiles for permission checks.
+# Secrets written by the manager:
+#   accessKey, secretKey, endpoint, bucket, buckets
+---
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: BucketAccess
+metadata:
+  name: hack-demo-rw
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+spec:
+  bucketRefs:
+    - name: hack-demo
+  writeSecretToRef:
+    name: hack-demo-rw-credentials
+  permissionPreset: ReadWrite
+  description: Hack sample read/write credentials for hack-demo
+---
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: BucketAccess
+metadata:
+  name: hack-demo-ro
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+spec:
+  bucketRefs:
+    - name: hack-demo
+  writeSecretToRef:
+    name: hack-demo-ro-credentials
+  permissionPreset: ReadOnly
+  description: Hack sample read-only credentials for hack-demo

@@ -1,0 +1,130 @@
+{{- if .Values.ciliumNetworkPolicy.enabled }}
+{{- $cnp := .Values.ciliumNetworkPolicy }}
+{{- $egress := $cnp.egress | default dict }}
+{{- $metrics := $cnp.metrics | default dict }}
+{{- $t := .Values.thalassa | default dict }}
+{{- $apiHost := "" }}
+{{- if and $t.url (ne $t.url "") }}
+{{- $parsed := urlParse $t.url }}
+{{- $apiHost = $parsed.host }}
+{{- end }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "objectstorageManager.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorageManager.labels" . | nindent 4 }}
+  {{- with $cnp.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "objectstorageManager.selectorLabels" . | nindent 6 }}
+  ingress:
+    {{- if dig "allowHealthChecks" true $cnp }}
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP
+    {{- end }}
+    {{- if dig "enabled" true $metrics }}
+    {{- $metricsPort := $metrics.port | default .Values.metrics.servicePort | default 8443 }}
+    - toPorts:
+        - ports:
+            - port: {{ $metricsPort | quote }}
+              protocol: TCP
+      {{- $fromNamespaces := $metrics.fromNamespaces | default list }}
+      {{- $fromEndpoints := $metrics.fromEndpoints | default list }}
+      {{- $fromEntities := $metrics.fromEntities | default list }}
+      {{- if or $fromNamespaces $fromEndpoints $fromEntities }}
+      {{- with $fromEntities }}
+      fromEntities:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or $fromNamespaces $fromEndpoints }}
+      fromEndpoints:
+        {{- range $fromNamespaces }}
+        - matchLabels:
+            io.kubernetes.pod.namespace: {{ . | quote }}
+        {{- end }}
+        {{- with $fromEndpoints }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- with $cnp.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    {{- if dig "allowKubeAPIServer" true $egress }}
+    - toEntities:
+        - kube-apiserver
+    {{- end }}
+    {{- if dig "allowDNS" true $egress }}
+    - toEndpoints:
+        {{- $dnsEndpoints := dig "dns" "toEndpoints" list $egress }}
+        {{- if $dnsEndpoints }}
+        {{- toYaml $dnsEndpoints | nindent 8 }}
+        {{- else }}
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    {{- end }}
+    {{- if dig "allowThalassaAPI" true $egress }}
+    {{- if $apiHost }}
+    - toFQDNs:
+        - matchName: {{ $apiHost | quote }}
+        {{- with $egress.extraFQDNs }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: {{ if $t.insecure | default false }}"80"{{ else }}"443"{{ end }}
+              protocol: TCP
+    {{- else }}
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+    {{- if $egress.extraFQDNs }}
+    - toFQDNs:
+        {{- toYaml $egress.extraFQDNs | nindent 8 }}
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    {{- end }}
+    {{- end }}
+    {{- else if $egress.extraFQDNs }}
+    - toFQDNs:
+        {{- toYaml $egress.extraFQDNs | nindent 8 }}
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    {{- end }}
+    {{- with $egress.extra }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

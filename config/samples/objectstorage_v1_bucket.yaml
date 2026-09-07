@@ -1,0 +1,89 @@
+# Example: provision a bucket and access profiles with presets / custom allowlisted actions.
+# Apply after the object storage manager is running and CRDs are installed.
+#
+# Rotate credentials later with:
+#   kubectl annotate bucketaccess app-data-rw objectstorage.controllers.thalassa.cloud/rotate-credentials=true
+---
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: Bucket
+metadata:
+  name: app-data
+  namespace: default
+spec:
+  name: app-data
+  generateNameSuffix: false # default true → app-data-<random>; see status.bucketName
+  region: nl-01
+  versioning: Enabled
+  public: false
+---
+# ReadWrite preset (also the default when permissionPreset / permissions omitted)
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: BucketAccess
+metadata:
+  name: app-data-rw
+  namespace: default
+spec:
+  bucketRefs:
+    - name: app-data
+  writeSecretToRef:
+    name: app-data-rw-credentials
+  permissionPreset: ReadWrite
+  description: Read/write credentials for app-data
+---
+# ReadOnly preset
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: BucketAccess
+metadata:
+  name: app-data-ro
+  namespace: default
+spec:
+  bucketRefs:
+    - name: app-data
+  writeSecretToRef:
+    name: app-data-ro-credentials
+  permissionPreset: ReadOnly
+  description: Read-only credentials for app-data
+---
+# Explicit allowlisted actions (subset of controller allowlist)
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: BucketAccess
+metadata:
+  name: app-data-get
+  namespace: default
+spec:
+  bucketRefs:
+    - name: app-data
+  writeSecretToRef:
+    name: app-data-get-credentials
+  permissions:
+    - s3:GetObject
+    - s3:ListBucket
+---
+# External principal: grant an existing Thalassa IAM service account (no Secret / credentials).
+# Replace identity with a real service account id from your organisation.
+# apiVersion: objectstorage.controllers.thalassa.cloud/v1
+# kind: BucketAccess
+# metadata:
+#   name: app-data-existing-sa
+#   namespace: default
+# spec:
+#   bucketRefs:
+#     - name: app-data
+#   principalRef:
+#     kind: ServiceAccount
+#     identity: sa-xxxxxxxx
+#   permissionPreset: ReadOnly
+# ---
+# External principal: grant an existing Thalassa user (AppUser subject).
+# apiVersion: objectstorage.controllers.thalassa.cloud/v1
+# kind: BucketAccess
+# metadata:
+#   name: app-data-existing-user
+#   namespace: default
+# spec:
+#   bucketRefs:
+#     - name: app-data
+#   principalRef:
+#     kind: User
+#     identity: u-xxxxxxxx
+#   permissionPreset: ReadOnly

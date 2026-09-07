@@ -1,0 +1,79 @@
+{{- if .Values.rbac.userRoles.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: thalassa:objectstorage:reader
+  labels:
+    {{- include "objectstorageManager.userClusterRoleLabels" . | nindent 4 }}
+    rbac.thalassa.cloud/objectstorage-role: reader
+  annotations:
+    rbac.thalassa.cloud/description: "Read-only access to Thalassa Object Storage custom resources (get/list/watch)."
+rules:
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - buckets
+  - bucketaccesses
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: thalassa:objectstorage:editor
+  labels:
+    {{- include "objectstorageManager.userClusterRoleLabels" . | nindent 4 }}
+    rbac.thalassa.cloud/objectstorage-role: editor
+  annotations:
+    rbac.thalassa.cloud/description: "Create, update, and delete Thalassa Object Storage resources (spec); does not grant status or finalizer writes."
+rules:
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - buckets
+  - bucketaccesses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: thalassa:objectstorage:admin
+  labels:
+    {{- include "objectstorageManager.userClusterRoleLabels" . | nindent 4 }}
+    rbac.thalassa.cloud/objectstorage-role: admin
+  annotations:
+    rbac.thalassa.cloud/description: "Full management of Thalassa Object Storage resources including status updates; finalizers remain controller-only."
+rules:
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - buckets
+  - bucketaccesses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - objectstorage.controllers.thalassa.cloud
+  resources:
+  - buckets/status
+  - bucketaccesses/status
+  verbs:
+  - get
+  - patch
+  - update
+{{- end }}

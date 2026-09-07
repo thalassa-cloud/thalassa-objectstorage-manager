@@ -1,0 +1,23 @@
+# Optional: grant an externally managed Thalassa principal on hack-demo.
+# Not included in kustomization — copy, set identity, then:
+#   kubectl apply -f hack/samples/bucketaccess-external.yaml
+#
+# Exactly one of principalRef or writeSecretToRef is allowed (CEL).
+# Deleting this CR removes the managed policy Sid only; the principal is left intact.
+---
+apiVersion: objectstorage.controllers.thalassa.cloud/v1
+kind: BucketAccess
+metadata:
+  name: hack-demo-external-sa
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+spec:
+  bucketRefs:
+    - name: hack-demo
+  principalRef:
+    kind: ServiceAccount
+    identity: REPLACE_WITH_SERVICE_ACCOUNT_ID
+  permissionPreset: ReadOnly
+  description: External SA grant for hack-demo (policy only)

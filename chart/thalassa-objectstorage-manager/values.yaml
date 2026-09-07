@@ -1,0 +1,260 @@
+# Default values for the thalassa-objectstorage-manager.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+image:
+# image used to deploy the Thalassa Cloud Manager components
+  repository: ghcr.io/thalassa-cloud/thalassa-objectstorage-manager
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: 
+
+# This section specifies the Kubernetes secret that is required to pull the image from the private container registry.
+imagePullSecrets: {}
+
+# The "nameOverride" value allows you to override the default name used when installing the Helm chart.
+# By default, the Helm release name is derived from the name provided during the installation process.
+# If "nameOverride" is not specified or left empty, the Helm release name remains the same as the one
+# provided during installation.
+nameOverride: ""
+# The "fullnameOverride" value makes it possible to customize the full name of the Helm release, which includes the release name
+# and the chart name.
+fullnameOverride: ""
+
+extraArgs: []
+
+# Deprecated alias for rbac.clusterScopedSecrets. Prefer rbac.clusterScopedSecrets.
+# Either flag enables --allow-all-namespaces-secret-ref and cluster-wide Secret RBAC.
+allowAllNamespacesSecretRef: false
+
+# Default Thalassa region when Bucket spec.region is empty (--default-region).
+# If empty, thalassa.region is also passed as --default-region (and --thalassa-region).
+defaultRegion: ""
+
+# Controller feature gates (--feature-gates). All gates default to false.
+featureGates:
+  # When true, allow adopting an existing Thalassa bucket by name if it carries
+  # the required adoption labels (see bucketAdoption.requiredLabels).
+  BucketAdoption: false
+
+bucketAdoption:
+  # Labels a Thalassa bucket must have before adoption is allowed (key=value pairs).
+  # Passed as --bucket-adoption-required-labels.
+  requiredLabels:
+    objectstorage.controllers.thalassa.cloud/adoptable: "true"
+
+envFrom: []
+
+# Thalassa Cloud API connection. Set enabled: true and configure one auth method, or leave
+# enabled: false and supply credentials via envFrom (e.g. External Secrets).
+thalassa:
+  enabled: true
+  url: "https://api.thalassa.cloud/"
+  organisation: ""
+  # Optional; also used as --default-region fallback when defaultRegion is empty.
+  region: ""
+  project: ""
+  insecure: false
+  # tokenExchange — federated workload identity: exchange Kubernetes SA JWT for API token (SubjectTokenFile defaults in controller)
+  # pat — personal access token from an existing Secret
+  # oidcClientCredentials — OAuth2 client credentials against {url}/oidc/token
+  authMethod: tokenExchange
+
+  tokenExchange:
+    serviceAccountId: ""
+    # If set, --thalassa-subject-token-file points here (you mount the token yourself).
+    # If empty and projectedToken.enabled is true, the chart mounts a projected service account token.
+    subjectTokenFile: ""
+    subjectToken: ""
+    oidcTokenUrl: ""
+    accessTokenLifetime: ""
+    # Projected service account token volume (recommended for bound tokens / workload identity).
+    # Ignored when subjectTokenFile is set.
+    projectedToken:
+      enabled: true
+      mountPath: /var/run/secrets/thalassa-projected-token
+      # File name inside the mount (full path = mountPath + "/" + path)
+      path: token
+      # OIDC audience for the token (required by many clusters for federated identity).
+      audience: "https://api.thalassa.cloud/"
+      expirationSeconds: 3600
+
+  pat:
+    # Secret is mounted as a volume; the controller reads the token from a file (no THALASSA_* env).
+    existingSecret: ""
+    secretKey: token
+    mountPath: /var/run/secrets/thalassa-pat
+    # Filename inside mountPath (must match Kubernetes secret items path)
+    secretFilename: token
+
+  oidcClientCredentials:
+    clientId: ""
+    existingSecret: ""
+    clientSecretKey: client-secret
+    mountPath: /var/run/secrets/thalassa-oidc
+    clientSecretFilename: client-secret
+
+replicaCount: 1
+minAvailable: 1
+
+service:
+  type: ClusterIP
+
+# Optional ClusterRoles for end-users (not bound by the chart): bind them to users or groups with
+# ClusterRoleBinding / RoleBinding, e.g. --clusterrole=thalassa:objectstorage:reader
+rbac:
+  userRoles:
+    enabled: true
+  # SECURITY-SENSITIVE: when true, grants cluster-wide Secret RBAC and enables
+  # --allow-all-namespaces-secret-ref (writeSecretToRef may target any namespace).
+  # Prefer listing tenant namespaces in secretNamespaces instead.
+  # Example: --set rbac.clusterScopedSecrets=true
+  clusterScopedSecrets: false
+  # Namespaces where the controller may create/update BucketAccess connection Secrets.
+  # The release namespace is always included. Add tenant namespaces that host Secrets.
+  # Ignored when clusterScopedSecrets (or allowAllNamespacesSecretRef) is true.
+  # Example: --set rbac.secretNamespaces={default,objectstorage-hack}
+  secretNamespaces: []
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Pod Annotations for API and API Daemon
+# Use the following annotations to apply metadata and configuration to the pods of the API and the API daemon.
+podAnnotations: {}
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  runAsNonRoot: true
+  runAsGroup: 65532
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ['ALL']
+  runAsUser: 65532
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Use the following settings to configure node affinity, tolerations, and affinity rules for the API and the API daemon
+# Define node labels as key-value pairs to select specific nodes for running the pods of the API and the API daemon.
+# When specified, the pods will be scheduled only on the nodes that match the specified labels.
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Metrics server (controller-runtime defaults to disabled bind address and HTTPS with auth).
+metrics:
+  # -- Expose the controller metrics endpoint
+  enabled: true
+  # -- Metrics listen address (--metrics-bind-address)
+  bindAddress: ":8443"
+  # -- Serve metrics over HTTPS with Kubernetes authn/authz (--metrics-secure)
+  secure: true
+  # -- Service port exposed for Prometheus scraping
+  servicePort: 8443
+  # -- Grant metrics-reader to the Prometheus service account (required for authenticated scrapes)
+  prometheusServiceAccount:
+    name: ""
+    namespace: ""
+  serviceMonitor:
+    interval: 30s
+    # -- Skip TLS verification for self-signed metrics certificates (matches kubebuilder default)
+    tlsInsecureSkipVerify: true
+    # -- Extra labels on the ServiceMonitor (e.g. release: kube-prometheus-stack)
+    labels: {}
+
+# enable or disable the deployment of the Service monitor
+enableServiceMonitor: false
+
+# -- Cilium NetworkPolicy for the manager pods (requires Cilium CNI).
+# When enabled, selected pods are default-deny for ingress/egress except the allow rules below.
+# Enable only on clusters running Cilium with the CiliumNetworkPolicy CRD installed.
+ciliumNetworkPolicy:
+  # -- Create a CiliumNetworkPolicy for manager pods
+  enabled: false
+  # -- Annotations for the CiliumNetworkPolicy
+  annotations: {}
+
+  # -- Allow kubelet probes (host / remote-node) on the health port (8081)
+  allowHealthChecks: true
+
+  # -- Metrics ingress. Prefer restricting with fromNamespaces / fromEndpoints / fromEntities.
+  metrics:
+    # -- Allow scraping of the metrics port (defaults to metrics.servicePort when unset)
+    enabled: true
+    port: 8443
+    # -- Namespace names whose pods may scrape metrics (e.g. ["monitoring"])
+    fromNamespaces: []
+    # -- Raw Cilium fromEndpoints selectors for metrics scrapers
+    fromEndpoints: []
+    # -- Cilium entities allowed to scrape metrics (e.g. ["host", "remote-node"])
+    fromEntities: []
+
+  egress:
+    # -- Allow egress to the Kubernetes API server entity
+    allowKubeAPIServer: true
+    # -- Allow DNS to kube-system/kube-dns (required for toFQDNs)
+    allowDNS: true
+    # Optional override of CoreDNS / kube-dns endpoint selectors.
+    # dns:
+    #   toEndpoints:
+    #     - matchLabels:
+    #         io.kubernetes.pod.namespace: kube-system
+    #         k8s-app: kube-dns
+    # -- Allow HTTPS (or HTTP when thalassa.insecure) to thalassa.url via toFQDNs; falls back to world when URL empty
+    allowThalassaAPI: true
+    # -- Extra Cilium toFQDNs matchName / matchPattern objects (merged with thalassa.url host)
+    extraFQDNs: []
+    # -- Extra raw Cilium egress rules
+    extra: []
+
+  # -- Extra raw Cilium ingress rules
+  extraIngress: []
+
+
+# Enable when running more than one replica so only one manager reconciles at a time.
+leaderElection:
+  enabled: false
+  # Optional. Defaults to the release namespace (in-cluster default) when unset.
+  # namespace: ""
+  id: thalassa-objectstorage-manager.controllers.thalassa.cloud
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 3

@@ -1,0 +1,140 @@
+# MinIO client (mc) deployments wired to BucketAccess Secrets.
+# Image: bitnamilegacy/minio-client (bitnami/* public tags were removed; legacy still has shell + mc).
+#
+# Wait until Bucket + BucketAccess are Ready and Secrets exist, then:
+#   kubectl -n objectstorage-hack logs deploy/hack-demo-mc-rw -f
+#   kubectl -n objectstorage-hack logs deploy/hack-demo-mc-ro -f
+# Or exec interactively:
+#   kubectl -n objectstorage-hack exec -it deploy/hack-demo-mc-rw -- bash
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hack-demo-mc-rw
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/name: hack-demo-mc-rw
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hack-demo-mc-rw
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hack-demo-mc-rw
+        app.kubernetes.io/part-of: thalassa-objectstorage-manager
+        app.kubernetes.io/component: hack-sample
+    spec:
+      containers:
+        - name: mc
+          image: bitnamilegacy/minio-client:2025.7.21-debian-12-r3
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/scripts/loop.sh", "/scripts/verify-rw.sh"]
+          env:
+            - name: VERIFY_INTERVAL_SECONDS
+              value: "60"
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-rw-credentials
+                  key: accessKey
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-rw-credentials
+                  key: secretKey
+            - name: ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-rw-credentials
+                  key: endpoint
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-rw-credentials
+                  key: bucket
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: scripts
+          configMap:
+            name: hack-demo-mc-scripts
+            defaultMode: 0555
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hack-demo-mc-ro
+  namespace: objectstorage-hack
+  labels:
+    app.kubernetes.io/name: hack-demo-mc-ro
+    app.kubernetes.io/part-of: thalassa-objectstorage-manager
+    app.kubernetes.io/component: hack-sample
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hack-demo-mc-ro
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hack-demo-mc-ro
+        app.kubernetes.io/part-of: thalassa-objectstorage-manager
+        app.kubernetes.io/component: hack-sample
+    spec:
+      containers:
+        - name: mc
+          image: bitnamilegacy/minio-client:2025.7.21-debian-12-r3
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/scripts/loop.sh", "/scripts/verify-ro.sh"]
+          env:
+            - name: VERIFY_INTERVAL_SECONDS
+              value: "60"
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-ro-credentials
+                  key: accessKey
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-ro-credentials
+                  key: secretKey
+            - name: ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-ro-credentials
+                  key: endpoint
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: hack-demo-ro-credentials
+                  key: bucket
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: scripts
+          configMap:
+            name: hack-demo-mc-scripts
+            defaultMode: 0555
