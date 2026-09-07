@@ -73,10 +73,10 @@ func TestProvisionedBucketName(t *testing.T) {
 	falseVal := false
 	trueVal := true
 	tests := []struct {
-		name    string
-		obj     *objectstoragev1.Bucket
-		want    string
-		wantOK  bool
+		name   string
+		obj    *objectstoragev1.Bucket
+		want   string
+		wantOK bool
 	}{
 		{
 			name:   "status bucket name wins",
