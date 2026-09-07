@@ -46,10 +46,13 @@ import (
 	// +kubebuilder:scaffold:imports
 )
 
-const thalassaClientHint = "unable to create Thalassa client; set --organisation (or THALASSA_ORGANISATION) and one of: " +
-	"--thalassa-service-account-id (OIDC token exchange; uses in-cluster SA token path by default), " +
-	"--thalassa-token-file or --thalassa-token, or --thalassa-client-id with " +
-	"--thalassa-client-secret-file or --thalassa-client-secret (or matching THALASSA_* env vars)"
+const (
+	thalassaClientHint = "unable to create Thalassa client; set --organisation " +
+		"(or THALASSA_ORGANISATION) and one of: " +
+		"--thalassa-service-account-id (OIDC token exchange; uses in-cluster SA token path by default), " +
+		"--thalassa-token-file or --thalassa-token, or --thalassa-client-id with " +
+		"--thalassa-client-secret-file or --thalassa-client-secret (or matching THALASSA_* env vars)"
+)
 
 var (
 	scheme   = runtime.NewScheme()

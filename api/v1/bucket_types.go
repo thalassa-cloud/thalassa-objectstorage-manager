@@ -147,5 +147,5 @@ type BucketList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&Bucket{}, &BucketList{})
+	objectTypes = append(objectTypes, &Bucket{}, &BucketList{})
 }

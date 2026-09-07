@@ -252,7 +252,7 @@ func (h *Handler) resolveBuckets(ctx context.Context, obj *objectstoragev1.Bucke
 		}
 		ready := false
 		for _, c := range bucket.Status.Conditions {
-			if c.Type == "Ready" && c.Status == metav1.ConditionTrue {
+			if c.Type == stdconditions.ConditionTypeReady && c.Status == metav1.ConditionTrue {
 				ready = true
 				break
 			}

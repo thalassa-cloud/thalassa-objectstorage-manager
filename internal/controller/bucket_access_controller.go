@@ -89,7 +89,7 @@ func (r *BucketAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 func (r *BucketAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("bucketaccess")
+	r.Recorder = mgr.GetEventRecorderFor("bucketaccess") //nolint:staticcheck // SA1019: handlers use record.EventRecorder; events API uses a different Eventf signature
 	if r.Handler == nil {
 		r.Handler = bucketaccess.NewHandler(bucketaccess.Config{
 			Client:                      r.Client,

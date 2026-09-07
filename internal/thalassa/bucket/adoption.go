@@ -45,7 +45,7 @@ func ParseLabelPairs(raw string) (map[string]string, error) {
 		return DefaultAdoptionRequiredLabels(), nil
 	}
 	out := map[string]string{}
-	for _, part := range strings.Split(raw, ",") {
+	for part := range strings.SplitSeq(raw, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
@@ -68,7 +68,7 @@ func CheckAdoptionEligibility(existing *objectstorage.ObjectStorageBucket, adopt
 		return fmt.Errorf("bucket is nil")
 	}
 	if !adoptionEnabled {
-		return fmt.Errorf("Thalassa bucket %q already exists; adoption is disabled (enable feature gate BucketAdoption and label the bucket for adoption)", existing.Name)
+		return fmt.Errorf("thalassa bucket %q already exists; adoption is disabled (enable feature gate BucketAdoption and label the bucket for adoption)", existing.Name)
 	}
 	if len(requiredLabels) == 0 {
 		requiredLabels = DefaultAdoptionRequiredLabels()
@@ -84,7 +84,7 @@ func CheckAdoptionEligibility(existing *objectstorage.ObjectStorageBucket, adopt
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("Thalassa bucket %q is missing required adoption label(s): %s", existing.Name, strings.Join(missing, ", "))
+		return fmt.Errorf("thalassa bucket %q is missing required adoption label(s): %s", existing.Name, strings.Join(missing, ", "))
 	}
 	return nil
 }

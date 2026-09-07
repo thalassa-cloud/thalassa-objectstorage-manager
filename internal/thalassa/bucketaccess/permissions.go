@@ -26,40 +26,62 @@ import (
 const (
 	PresetReadOnly  = "ReadOnly"
 	PresetReadWrite = "ReadWrite"
+
+	actionGetObject                  = "s3:GetObject"
+	actionGetObjectVersion           = "s3:GetObjectVersion"
+	actionPutObject                  = "s3:PutObject"
+	actionDeleteObject               = "s3:DeleteObject"
+	actionDeleteObjectVersion        = "s3:DeleteObjectVersion"
+	actionListMultipartUploadParts   = "s3:ListMultipartUploadParts"
+	actionAbortMultipartUpload       = "s3:AbortMultipartUpload"
+	actionListBucket                 = "s3:ListBucket"
+	actionListBucketVersions         = "s3:ListBucketVersions"
+	actionListBucketMultipartUploads = "s3:ListBucketMultipartUploads"
+	actionGetBucketAcl               = "s3:GetBucketAcl"
+	actionGetBucketVersioning        = "s3:GetBucketVersioning"
+	actionGetLifecycleConfiguration  = "s3:GetLifecycleConfiguration"
+	actionGetObjectTagging           = "s3:GetObjectTagging"
+	actionPutObjectTagging           = "s3:PutObjectTagging"
+	actionDeleteObjectTagging        = "s3:DeleteObjectTagging"
+	actionGetObjectVersionTagging    = "s3:GetObjectVersionTagging"
+	actionPutObjectVersionTagging    = "s3:PutObjectVersionTagging"
+	actionDeleteObjectVersionTagging = "s3:DeleteObjectVersionTagging"
+	actionGetBucketLocation          = "s3:GetBucketLocation"
+	actionGetBucketPolicyStatus      = "s3:GetBucketPolicyStatus"
 )
 
 // ReadOnlyPermissions is the least-privilege object read + list set.
 var ReadOnlyPermissions = []string{
-	"s3:GetObject",
-	"s3:GetObjectVersion",
-	"s3:ListBucket",
-	"s3:ListBucketVersions",
-	"s3:GetObjectTagging",
-	"s3:GetObjectVersionTagging",
-	"s3:GetBucketVersioning",
+	actionGetObject,
+	actionGetObjectVersion,
+	actionListBucket,
+	actionListBucketVersions,
+	actionGetObjectTagging,
+	actionGetObjectVersionTagging,
+	actionGetBucketVersioning,
 }
 
 // ReadWritePermissions is the default grant set (objects + list + tagging + multipart).
 var ReadWritePermissions = []string{
-	"s3:GetObject",
-	"s3:GetObjectVersion",
-	"s3:PutObject",
-	"s3:DeleteObject",
-	"s3:DeleteObjectVersion",
-	"s3:ListMultipartUploadParts",
-	"s3:AbortMultipartUpload",
-	"s3:ListBucket",
-	"s3:ListBucketVersions",
-	"s3:ListBucketMultipartUploads",
-	"s3:GetBucketAcl",
-	"s3:GetBucketVersioning",
-	"s3:GetLifecycleConfiguration",
-	"s3:GetObjectTagging",
-	"s3:PutObjectTagging",
-	"s3:DeleteObjectTagging",
-	"s3:GetObjectVersionTagging",
-	"s3:PutObjectVersionTagging",
-	"s3:DeleteObjectVersionTagging",
+	actionGetObject,
+	actionGetObjectVersion,
+	actionPutObject,
+	actionDeleteObject,
+	actionDeleteObjectVersion,
+	actionListMultipartUploadParts,
+	actionAbortMultipartUpload,
+	actionListBucket,
+	actionListBucketVersions,
+	actionListBucketMultipartUploads,
+	actionGetBucketAcl,
+	actionGetBucketVersioning,
+	actionGetLifecycleConfiguration,
+	actionGetObjectTagging,
+	actionPutObjectTagging,
+	actionDeleteObjectTagging,
+	actionGetObjectVersionTagging,
+	actionPutObjectVersionTagging,
+	actionDeleteObjectVersionTagging,
 }
 
 // DefaultPermissions is an alias for ReadWritePermissions (used when preset and permissions are empty).
@@ -74,9 +96,9 @@ var AllowedActions = func() map[string]struct{} {
 	}
 	// Extra allowlisted read helpers not in the default RW preset.
 	for _, a := range []string{
-		"s3:GetObjectVersionTagging",
-		"s3:GetBucketLocation",
-		"s3:GetBucketPolicyStatus",
+		actionGetObjectVersionTagging,
+		actionGetBucketLocation,
+		actionGetBucketPolicyStatus,
 	} {
 		m[a] = struct{}{}
 	}

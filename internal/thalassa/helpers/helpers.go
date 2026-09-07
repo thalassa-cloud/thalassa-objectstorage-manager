@@ -59,7 +59,7 @@ func NeedStatusUpdate(
 	newLastErr, newResourceStatus string,
 	currentLastErr, currentResourceStatus string,
 ) bool {
-	r := meta.FindStatusCondition(conditions, "Ready")
+	r := meta.FindStatusCondition(conditions, stdconditions.ConditionTypeReady)
 	if r == nil {
 		return true
 	}

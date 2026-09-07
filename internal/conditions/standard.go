@@ -36,24 +36,32 @@ const (
 	ConditionStateProgressing ConditionState = "progressing"
 )
 
+const (
+	// Condition type names used on CR status.
+	ConditionTypeAvailable   = "Available"
+	ConditionTypeProgressing = "Progressing"
+	ConditionTypeDegraded    = "Degraded"
+	ConditionTypeReady       = "Ready"
+)
+
 // SetStandardConditions sets Ready and the standard condition types (Available, Progressing, Degraded)
 // on the given conditions slice.
 func SetStandardConditions(conditions *[]metav1.Condition, state ConditionState, reason, message string) {
 	switch state {
 	case ConditionStateAvailable:
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionTrue, Reason: reason, Message: message})
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Progressing", Status: metav1.ConditionFalse, Reason: "Reconciled", Message: ""})
-		meta.RemoveStatusCondition(conditions, "Degraded")
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: reason, Message: message})
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeAvailable, Status: metav1.ConditionTrue, Reason: reason, Message: message})
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeProgressing, Status: metav1.ConditionFalse, Reason: "Reconciled", Message: ""})
+		meta.RemoveStatusCondition(conditions, ConditionTypeDegraded)
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeReady, Status: metav1.ConditionTrue, Reason: reason, Message: message})
 	case ConditionStateDegraded:
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionFalse, Reason: reason, Message: message})
-		meta.RemoveStatusCondition(conditions, "Progressing")
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Degraded", Status: metav1.ConditionTrue, Reason: reason, Message: message})
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: message})
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeAvailable, Status: metav1.ConditionFalse, Reason: reason, Message: message})
+		meta.RemoveStatusCondition(conditions, ConditionTypeProgressing)
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeDegraded, Status: metav1.ConditionTrue, Reason: reason, Message: message})
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeReady, Status: metav1.ConditionFalse, Reason: reason, Message: message})
 	case ConditionStateProgressing:
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Available", Status: metav1.ConditionFalse, Reason: reason, Message: message})
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Progressing", Status: metav1.ConditionTrue, Reason: reason, Message: message})
-		meta.RemoveStatusCondition(conditions, "Degraded")
-		meta.SetStatusCondition(conditions, metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: message})
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeAvailable, Status: metav1.ConditionFalse, Reason: reason, Message: message})
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeProgressing, Status: metav1.ConditionTrue, Reason: reason, Message: message})
+		meta.RemoveStatusCondition(conditions, ConditionTypeDegraded)
+		meta.SetStatusCondition(conditions, metav1.Condition{Type: ConditionTypeReady, Status: metav1.ConditionFalse, Reason: reason, Message: message})
 	}
 }
