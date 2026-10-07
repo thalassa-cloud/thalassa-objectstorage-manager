@@ -44,6 +44,8 @@ import (
 	objectstoragev1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/api/v1"
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/controller"
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/featuregates"
+	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/managerhealth"
+	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/secretref"
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/thalassa/bucket"
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/thalassaclient"
 	// +kubebuilder:scaffold:imports
@@ -147,6 +149,11 @@ func main() {
 		"SECURITY-SENSITIVE: Allow writeSecretToRef to target Secrets in any namespace. "+
 			"Default false (same-namespace only). Enabling this requires cluster-wide Secret RBAC "+
 			"and lets anyone who can create BucketAccess write Secrets outside their namespace.")
+	var secretNamespacesRaw string
+	flag.StringVar(&secretNamespacesRaw, "secret-namespaces", "",
+		"Comma-separated namespaces whose Secrets the manager may cache and watch. "+
+			"Required when Secret RBAC is namespaced-only (Helm rbac.secretNamespaces). "+
+			"Ignored when --allow-all-namespaces-secret-ref is true.")
 	var featureGatesRaw string
 	flag.StringVar(&featureGatesRaw, "feature-gates", "",
 		"Comma-separated feature gates (e.g. BucketAdoption=true). Default: all gates off.")
@@ -243,10 +250,24 @@ func main() {
 		setupLog.Info("feature gate enabled", "gate", featuregates.BucketAdoption, "requiredLabels", adoptionLabels)
 	}
 
+	secretNamespaces, err := secretref.ParseNamespaces(secretNamespacesRaw)
+	if err != nil {
+		setupLog.Error(err, "invalid --secret-namespaces")
+		os.Exit(1)
+	}
 	if allowAllNamespacesSecretRef {
 		setupLog.Info("WARNING: --allow-all-namespaces-secret-ref is enabled; " +
 			"users who can create BucketAccess resources can cause the controller to write Secrets in other namespaces. " +
 			"Keep this disabled in production unless you also grant cluster-wide Secret RBAC intentionally.")
+		if len(secretNamespaces) > 0 {
+			setupLog.Info("ignoring --secret-namespaces because --allow-all-namespaces-secret-ref is enabled")
+		}
+	} else if len(secretNamespaces) == 0 {
+		setupLog.Info("Secret informer is cluster-scoped; " +
+			"if Secret RBAC is namespaced-only, set --secret-namespaces to those Role namespaces " +
+			"or controllers will never start")
+	} else {
+		setupLog.Info("restricting Secret informer to namespaced cache", "namespaces", secretNamespaces)
 	}
 
 	disableHTTP2 := func(c *tls.Config) {
@@ -291,6 +312,7 @@ func main() {
 		LeaderElection:          enableLeaderElection,
 		LeaderElectionID:        leaderElectionID,
 		LeaderElectionNamespace: leaderElectionNamespace,
+		Cache:                   secretref.SecretCacheOptions(allowAllNamespacesSecretRef, secretNamespaces),
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -374,6 +396,10 @@ func main() {
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("cache-sync", managerhealth.CacheSyncCheck(mgr.GetCache().WaitForCacheSync)); err != nil {
+		setupLog.Error(err, "unable to set up cache sync ready check")
 		os.Exit(1)
 	}
 

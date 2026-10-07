@@ -107,7 +107,7 @@ spec:
 ## Security notes
 
 - Connection credentials are written only to Kubernetes Secrets.
-- Secret writes are same-namespace by default. Prefer listing tenant namespaces with Helm `--set rbac.secretNamespaces={ns1,ns2}` (release namespace is always included). Only use `--set rbac.clusterScopedSecrets=true` (enables `--allow-all-namespaces-secret-ref` + cluster-wide Secret RBAC) when you intentionally need cross-namespace Secret writes.
+- Secret writes are same-namespace by default. Prefer listing tenant namespaces with Helm `--set rbac.secretNamespaces={ns1,ns2}` (release namespace is always included; the chart also passes `--secret-namespaces` so the Secret informer matches those Roles). Only use `--set rbac.clusterScopedSecrets=true` (enables `--allow-all-namespaces-secret-ref` + cluster-wide Secret RBAC) when you intentionally need cross-namespace Secret writes.
 - Existing Secrets are never overwritten unless already owned by the `BucketAccess` (ownerRef or ownership label).
 - Bucket adoption is behind `--feature-gates=BucketAdoption=true` and requires labels on the Thalassa bucket (`objectstorage.controllers.thalassa.cloud/adoptable=true` by default).
 - `permissionPreset` defaults to `ReadWrite`; prefer `ReadOnly` when write access is not needed. Admin actions (`s3:*`, `PutBucketPolicy`, `DeleteBucket`, …) are rejected.
