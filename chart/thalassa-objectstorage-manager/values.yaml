@@ -111,6 +111,8 @@ rbac:
   clusterScopedSecrets: false
   # Namespaces where the controller may create/update BucketAccess connection Secrets.
   # The release namespace is always included. Add tenant namespaces that host Secrets.
+  # Passed to the controller as --secret-namespaces so the Secret informer matches
+  # the namespaced Roles (a cluster-scoped Secret watch fails and blocks all reconcilers).
   # Ignored when clusterScopedSecrets (or allowAllNamespacesSecretRef) is true.
   # Example: --set rbac.secretNamespaces={default,objectstorage-hack}
   secretNamespaces: []

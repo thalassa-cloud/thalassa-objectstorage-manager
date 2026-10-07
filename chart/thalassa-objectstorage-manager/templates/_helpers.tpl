@@ -87,3 +87,11 @@ true
 false
 {{- end -}}
 {{- end }}
+
+{{/*
+Comma-separated namespaces for --secret-namespaces (release NS + rbac.secretNamespaces).
+*/}}
+{{- define "objectstorageManager.secretNamespacesArg" -}}
+{{- $namespaces := concat (list .Release.Namespace) (.Values.rbac.secretNamespaces | default list) | compact | uniq -}}
+{{- join "," $namespaces -}}
+{{- end }}

@@ -50,6 +50,9 @@ spec:
           command:
           - /thalassa-objectstorage-manager
           - --allow-all-namespaces-secret-ref={{ include "objectstorageManager.clusterScopedSecrets" . }}
+          {{- if ne (include "objectstorageManager.clusterScopedSecrets" .) "true" }}
+          - --secret-namespaces={{ include "objectstorageManager.secretNamespacesArg" . }}
+          {{- end }}
           {{- $gates := list }}
           {{- if .Values.featureGates.BucketAdoption }}
           {{- $gates = append $gates "BucketAdoption=true" }}

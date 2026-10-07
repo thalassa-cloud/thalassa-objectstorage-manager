@@ -38,6 +38,8 @@ Set `defaultRegion` (or `thalassa.region`) so Bucket resources can omit `spec.re
 --set rbac.secretNamespaces={default,apps}
 ```
 
+The chart grants namespaced Secret `Role`s and passes those namespaces as `--secret-namespaces` so the Secret informer is not cluster-scoped. Without that, cache sync never completes and no `Bucket` / `BucketAccess` is reconciled.
+
 **Cluster-scoped (security-sensitive):** allow Secrets in any namespace.
 
 ```bash

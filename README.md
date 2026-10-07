@@ -54,7 +54,8 @@ Copy the Thalassa service account ID from the output into `THALASSA_SERVICE_ACCO
 ### 2. Install CRDs and controller
 
 ```bash
-export ORGANISATION_ID="<ORGANISATION_ID>"
+# Slug or identity (identity is resolved at startup for bucket policy ARNs)
+export ORGANISATION="<ORGANISATION_SLUG_OR_ID>"
 export THALASSA_SERVICE_ACCOUNT_ID="<THALASSA_SERVICE_ACCOUNT_ID>"
 
 helm upgrade --install thalassa-objectstorage-manager-crds \
@@ -66,7 +67,7 @@ helm upgrade --install thalassa-objectstorage-manager \
   oci://ghcr.io/thalassa-cloud/charts/thalassa-objectstorage-manager:<version> \
   --namespace thalassa-objectstorage-manager \
   --create-namespace \
-  --set thalassa.organisation="$ORGANISATION_ID" \
+  --set thalassa.organisation="$ORGANISATION" \
   --set thalassa.tokenExchange.serviceAccountId="$THALASSA_SERVICE_ACCOUNT_ID" \
   --set defaultRegion=nl-01 \
   --set rbac.secretNamespaces={default} \
@@ -106,7 +107,7 @@ spec:
 ## Security notes
 
 - Connection credentials are written only to Kubernetes Secrets.
-- Secret writes are same-namespace by default. Prefer listing tenant namespaces with Helm `--set rbac.secretNamespaces={ns1,ns2}` (release namespace is always included). Only use `--set rbac.clusterScopedSecrets=true` (enables `--allow-all-namespaces-secret-ref` + cluster-wide Secret RBAC) when you intentionally need cross-namespace Secret writes.
+- Secret writes are same-namespace by default. Prefer listing tenant namespaces with Helm `--set rbac.secretNamespaces={ns1,ns2}` (release namespace is always included; the chart also passes `--secret-namespaces` so the Secret informer matches those Roles). Only use `--set rbac.clusterScopedSecrets=true` (enables `--allow-all-namespaces-secret-ref` + cluster-wide Secret RBAC) when you intentionally need cross-namespace Secret writes.
 - Existing Secrets are never overwritten unless already owned by the `BucketAccess` (ownerRef or ownership label).
 - Bucket adoption is behind `--feature-gates=BucketAdoption=true` and requires labels on the Thalassa bucket (`objectstorage.controllers.thalassa.cloud/adoptable=true` by default).
 - `permissionPreset` defaults to `ReadWrite`; prefer `ReadOnly` when write access is not needed. Admin actions (`s3:*`, `PutBucketPolicy`, `DeleteBucket`, …) are rejected.
