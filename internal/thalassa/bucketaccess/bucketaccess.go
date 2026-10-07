@@ -168,6 +168,7 @@ func (h *Handler) Reconcile(ctx context.Context, obj *objectstoragev1.BucketAcce
 			return ctrl.Result{RequeueAfter: requeueAfterStatusUpdateFailure}, err
 		}
 
+		prevCredID := obj.Status.AccessCredentialID
 		accessKey, accessSecret, credID, rotated, err = h.ensureAccessCredential(ctx, obj, saID)
 		if err != nil {
 			return h.setErrorCondition(ctx, obj, "AccessCredentialFailed", err.Error(), err)
@@ -176,6 +177,12 @@ func (h *Handler) Reconcile(ctx context.Context, obj *objectstoragev1.BucketAcce
 		obj.Status.AccessCredentialID = credID
 		obj.Status.AccessKeyID = accessKey
 		if err := h.updateStatusWithRetry(ctx, obj); err != nil {
+			// Status did not stick; drop a newly minted credential so the next retry is clean.
+			if credID != "" && credID != prevCredID {
+				if delErr := h.IAM.DeleteServiceAccountAccessCredentials(ctx, saID, credID); delErr != nil && !thalassaclient.IsNotFound(delErr) {
+					log.Error(delErr, "failed to delete access credential after status persist failure", "credentialId", credID)
+				}
+			}
 			return ctrl.Result{RequeueAfter: requeueAfterStatusUpdateFailure}, err
 		}
 
@@ -349,6 +356,12 @@ func (h *Handler) findOwnedServiceAccount(ctx context.Context, obj *objectstorag
 	if err != nil {
 		return "", err
 	}
+	return pickOwnedServiceAccountID(accounts, obj, name), nil
+}
+
+// pickOwnedServiceAccountID selects a reusable owned SA identity from a list.
+// Prefers an exact name match; otherwise returns the first owned SA.
+func pickOwnedServiceAccountID(accounts []iam.ServiceAccount, obj *objectstoragev1.BucketAccess, name string) string {
 	var fallback string
 	for i := range accounts {
 		sa := &accounts[i]
@@ -356,13 +369,13 @@ func (h *Handler) findOwnedServiceAccount(ctx context.Context, obj *objectstorag
 			continue
 		}
 		if sa.Name == name {
-			return sa.Identity, nil
+			return sa.Identity
 		}
 		if fallback == "" {
 			fallback = sa.Identity
 		}
 	}
-	return fallback, nil
+	return fallback
 }
 
 func ownershipLabelValue(obj metav1.Object) string {
@@ -388,11 +401,12 @@ func (h *Handler) ensureAccessCredential(ctx context.Context, obj *objectstorage
 
 	rotate := WantsCredentialRotation(obj.GetAnnotations())
 	existingKey, existingSecret, secretOK := h.readSecretCredentials(ctx, secretNS, obj.Spec.WriteSecretToRef.Name)
+	oldCredID := obj.Status.AccessCredentialID
 
 	// Reuse existing credential material unless rotation was requested.
 	if !rotate && secretOK {
-		if obj.Status.AccessCredentialID != "" {
-			return existingKey, existingSecret, obj.Status.AccessCredentialID, false, nil
+		if oldCredID != "" {
+			return existingKey, existingSecret, oldCredID, false, nil
 		}
 		creds, listErr := h.IAM.GetServiceAccountAccessCredentials(ctx, saID)
 		if listErr == nil {
@@ -404,7 +418,17 @@ func (h *Handler) ensureAccessCredential(ctx context.Context, obj *objectstorage
 		}
 	}
 
-	oldCredID := obj.Status.AccessCredentialID
+	// Access secrets are only returned at create time. If we track a credential but have
+	// no Secret material, delete the tracked credential before minting a replacement so
+	// retries cannot accumulate credentials up to the API limit.
+	if oldCredID != "" && !secretOK {
+		if delErr := h.IAM.DeleteServiceAccountAccessCredentials(ctx, saID, oldCredID); delErr != nil && !thalassaclient.IsNotFound(delErr) {
+			return "", "", "", false, fmt.Errorf("delete unrecoverable access credential %s before recreate: %w", oldCredID, delErr)
+		}
+		obj.Status.AccessCredentialID = ""
+		obj.Status.AccessKeyID = ""
+		oldCredID = ""
+	}
 
 	var expires *time.Time
 	if obj.Spec.ExpiresAt != nil {
@@ -421,7 +445,7 @@ func (h *Handler) ensureAccessCredential(ctx context.Context, obj *objectstorage
 		return "", "", "", false, err
 	}
 
-	// Delete previous credential after successful create (rotation / replacement).
+	// Delete previous credential after successful create (rotation).
 	if oldCredID != "" && oldCredID != created.Identity {
 		if delErr := h.IAM.DeleteServiceAccountAccessCredentials(ctx, saID, oldCredID); delErr != nil && !thalassaclient.IsNotFound(delErr) {
 			logf.FromContext(ctx).Error(delErr, "failed to delete previous access credential after rotation", "oldCredentialId", oldCredID)
