@@ -17,10 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
@@ -36,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/thalassa-cloud/client-go/iam"
+	"github.com/thalassa-cloud/client-go/me"
 	"github.com/thalassa-cloud/client-go/objectstorage"
 
 	objectstoragev1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/api/v1"
@@ -310,10 +313,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	orgID := strings.TrimSpace(organisation)
-	if orgID == "" {
-		orgID = strings.TrimSpace(thalassaClient.GetOrganisationIdentity())
+	orgRef := strings.TrimSpace(organisation)
+	if orgRef == "" {
+		orgRef = strings.TrimSpace(thalassaClient.GetOrganisationIdentity())
 	}
+	meClient, err := me.New(thalassaClient)
+	if err != nil {
+		setupLog.Error(err, "unable to create Thalassa me client")
+		os.Exit(1)
+	}
+	resolveCtx, resolveCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	orgID, err := thalassaclient.ResolveOrganisationIdentity(
+		resolveCtx,
+		meClient,
+		orgRef,
+		iamClient,
+		thalassaServiceAccountID,
+	)
+	resolveCancel()
+	if err != nil {
+		setupLog.Error(err, "unable to resolve organisation identity from slug or identity",
+			"organisation", orgRef)
+		os.Exit(1)
+	}
+	if orgID != orgRef {
+		setupLog.Info("resolved organisation slug to identity",
+			"organisation", orgRef,
+			"organisationIdentity", orgID,
+		)
+	}
+	thalassaClient.SetOrganisation(orgID)
 
 	if err := (&controller.BucketReconciler{
 		Client:                 mgr.GetClient(),

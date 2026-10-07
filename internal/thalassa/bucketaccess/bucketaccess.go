@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/thalassa-cloud/client-go/filters"
 	"github.com/thalassa-cloud/client-go/iam"
 	"github.com/thalassa-cloud/client-go/objectstorage"
 	thalassaclient "github.com/thalassa-cloud/client-go/pkg/client"
@@ -159,15 +160,38 @@ func (h *Handler) Reconcile(ctx context.Context, obj *objectstoragev1.BucketAcce
 		if err != nil {
 			return h.setErrorCondition(ctx, obj, "ServiceAccountFailed", err.Error(), err)
 		}
+		// Persist immediately so retries reuse the SA even if a later step fails.
 		obj.Status.ServiceAccountID = saID
+		principalARN = ServiceAccountPrincipalARN(h.OrganisationID, saID)
+		obj.Status.PrincipalARN = principalARN
+		if err := h.updateStatusWithRetry(ctx, obj); err != nil {
+			return ctrl.Result{RequeueAfter: requeueAfterStatusUpdateFailure}, err
+		}
 
 		accessKey, accessSecret, credID, rotated, err = h.ensureAccessCredential(ctx, obj, saID)
 		if err != nil {
 			return h.setErrorCondition(ctx, obj, "AccessCredentialFailed", err.Error(), err)
 		}
+		// Persist credential identity before secret/policy work so retries do not mint extras.
 		obj.Status.AccessCredentialID = credID
 		obj.Status.AccessKeyID = accessKey
-		principalARN = ServiceAccountPrincipalARN(h.OrganisationID, saID)
+		if err := h.updateStatusWithRetry(ctx, obj); err != nil {
+			return ctrl.Result{RequeueAfter: requeueAfterStatusUpdateFailure}, err
+		}
+
+		// Write the Secret before policy grants so accessSecret is not lost on later failure;
+		// retries can then reuse status.accessCredentialId + Secret material.
+		secretNS, err := secretref.Resolve(obj.Namespace, obj.Spec.WriteSecretToRef.Namespace, h.AllowAllNamespacesSecretRef)
+		if err != nil {
+			return h.setErrorCondition(ctx, obj, "SecretRefInvalid", err.Error(), err)
+		}
+		if err := h.writeSecret(ctx, obj, secretNS, accessKey, accessSecret, buckets); err != nil {
+			return h.setErrorCondition(ctx, obj, "SecretWriteFailed", err.Error(), err)
+		}
+		obj.Status.SecretRef = &objectstoragev1.SecretReference{Name: obj.Spec.WriteSecretToRef.Name, Namespace: secretNS}
+		if err := h.updateStatusWithRetry(ctx, obj); err != nil {
+			return ctrl.Result{RequeueAfter: requeueAfterStatusUpdateFailure}, err
+		}
 	} else {
 		resolved, err := h.resolveExternalPrincipal(ctx, obj.Spec.PrincipalRef)
 		if err != nil {
@@ -181,8 +205,8 @@ func (h *Handler) Reconcile(ctx context.Context, obj *objectstoragev1.BucketAcce
 		obj.Status.AccessKeyID = ""
 		obj.Status.SecretRef = nil
 		obj.Status.LastCredentialRotationTime = nil
+		obj.Status.PrincipalARN = principalARN
 	}
-	obj.Status.PrincipalARN = principalARN
 
 	granted := make([]string, 0, len(buckets))
 	for _, b := range buckets {
@@ -194,15 +218,6 @@ func (h *Handler) Reconcile(ctx context.Context, obj *objectstoragev1.BucketAcce
 	obj.Status.GrantedBuckets = granted
 
 	if managed {
-		secretNS, err := secretref.Resolve(obj.Namespace, obj.Spec.WriteSecretToRef.Namespace, h.AllowAllNamespacesSecretRef)
-		if err != nil {
-			return h.setErrorCondition(ctx, obj, "SecretRefInvalid", err.Error(), err)
-		}
-		if err := h.writeSecret(ctx, obj, secretNS, accessKey, accessSecret, buckets); err != nil {
-			return h.setErrorCondition(ctx, obj, "SecretWriteFailed", err.Error(), err)
-		}
-		obj.Status.SecretRef = &objectstoragev1.SecretReference{Name: obj.Spec.WriteSecretToRef.Name, Namespace: secretNS}
-
 		if rotated {
 			if err := h.clearRotateAnnotation(ctx, obj); err != nil {
 				return ctrl.Result{RequeueAfter: requeueAfterStatusUpdateFailure}, err
@@ -279,10 +294,15 @@ func (h *Handler) ensureServiceAccount(ctx context.Context, obj *objectstoragev1
 		}
 	}
 
-	name := obj.Spec.ServiceAccountName
-	if name == "" {
-		name = fmt.Sprintf("%s-%s", obj.Namespace, obj.Name)
+	name := managedServiceAccountName(obj)
+
+	// Safety net when status was lost: reuse an existing SA we own (by ownership label).
+	if existingID, err := h.findOwnedServiceAccount(ctx, obj, name); err != nil {
+		return "", err
+	} else if existingID != "" {
+		return existingID, nil
 	}
+
 	var desc *string
 	if obj.Spec.Description != "" {
 		d := obj.Spec.Description
@@ -305,6 +325,44 @@ func (h *Handler) ensureServiceAccount(ctx context.Context, obj *objectstoragev1
 	}
 	h.Recorder.Eventf(obj, corev1.EventTypeNormal, "ServiceAccountCreated", "Created Thalassa IAM service account %s", created.Identity)
 	return created.Identity, nil
+}
+
+func managedServiceAccountName(obj *objectstoragev1.BucketAccess) string {
+	if obj.Spec.ServiceAccountName != "" {
+		return obj.Spec.ServiceAccountName
+	}
+	return fmt.Sprintf("%s-%s", obj.Namespace, obj.Name)
+}
+
+// findOwnedServiceAccount returns the identity of an existing IAM SA owned by this
+// BucketAccess, preferring an exact name match when multiple owned SAs exist.
+func (h *Handler) findOwnedServiceAccount(ctx context.Context, obj *objectstoragev1.BucketAccess, name string) (string, error) {
+	accounts, err := h.IAM.ListServiceAccounts(ctx, &iam.ListServiceAccountsRequest{
+		Filters: []filters.Filter{
+			&filters.LabelFilter{
+				MatchLabels: map[string]string{
+					ownershipLabelKey: ownershipLabelValue(obj),
+				},
+			},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	var fallback string
+	for i := range accounts {
+		sa := &accounts[i]
+		if !serviceAccountOwnedBy(obj, sa) {
+			continue
+		}
+		if sa.Name == name {
+			return sa.Identity, nil
+		}
+		if fallback == "" {
+			fallback = sa.Identity
+		}
+	}
+	return fallback, nil
 }
 
 func ownershipLabelValue(obj metav1.Object) string {
