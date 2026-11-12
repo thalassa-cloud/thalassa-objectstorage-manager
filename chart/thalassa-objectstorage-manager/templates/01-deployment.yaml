@@ -89,6 +89,16 @@ spec:
           {{- end }}
           {{- end }}
 
+          {{- if .Values.webhook.enabled }}
+          {{- if and (not .Values.webhook.certManager.enabled) (eq (.Values.webhook.tls.secretName | default "") "") }}
+          {{- fail "webhook.tls.secretName is required when webhook.enabled=true and webhook.certManager.enabled=false" }}
+          {{- end }}
+          - --enable-webhooks=true
+          - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+          {{- else }}
+          - --enable-webhooks=false
+          {{- end }}
+
           {{- if $t.enabled }}
           {{- if not $t.organisation }}
           {{- fail "thalassa.organisation is required when thalassa.enabled is true" }}
@@ -161,9 +171,19 @@ spec:
             {{- end }}
             - name: health
               containerPort: 8081
+            {{- if .Values.webhook.enabled }}
+            - name: webhook
+              containerPort: {{ .Values.webhook.port | default 9443 }}
+              protocol: TCP
+            {{- end }}
           volumeMounts:
             - name: tempdir
               mountPath: /tmp
+            {{- if .Values.webhook.enabled }}
+            - name: webhook-certs
+              mountPath: /tmp/k8s-webhook-server/serving-certs
+              readOnly: true
+            {{- end }}
             {{- if and $t.enabled (eq $t.authMethod "tokenExchange") $proj.enabled (not $te.subjectTokenFile) (not $te.subjectToken) }}
             - name: thalassa-sa-token
               mountPath: {{ $proj.mountPath | quote }}
@@ -188,6 +208,12 @@ spec:
       volumes:
         - name: tempdir
           emptyDir: {}
+        {{- if .Values.webhook.enabled }}
+        - name: webhook-certs
+          secret:
+            secretName: {{ include "objectstorageManager.webhookCertSecretName" . | quote }}
+            defaultMode: 420
+        {{- end }}
         {{- if and $t.enabled (eq $t.authMethod "tokenExchange") $proj.enabled (not $te.subjectTokenFile) (not $te.subjectToken) }}
         - name: thalassa-sa-token
           projected:

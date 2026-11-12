@@ -1,0 +1,33 @@
+{{- if .Values.webhook.enabled }}
+{{- if and (not .Values.webhook.certManager.enabled) (eq (.Values.webhook.tls.secretName | default "") "") }}
+{{- fail "webhook.tls.secretName is required when webhook.enabled=true and webhook.certManager.enabled=false" }}
+{{- end }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "objectstorageManager.name" . }}-bucket-validation
+  labels:
+    {{- include "objectstorageManager.labels" . | nindent 4 }}
+  {{- if .Values.webhook.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "objectstorageManager.name" . }}-webhook
+  {{- end }}
+webhooks:
+  - name: vbucket-v1.kb.io
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "objectstorageManager.webhookServiceName" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /validate-objectstorage-controllers-thalassa-cloud-v1-bucket
+        port: 443
+    failurePolicy: {{ .Values.webhook.failurePolicy | default "Fail" }}
+    sideEffects: None
+    timeoutSeconds: 10
+    rules:
+      - apiGroups: ["objectstorage.controllers.thalassa.cloud"]
+        apiVersions: ["v1"]
+        operations: ["DELETE"]
+        resources: ["buckets"]
+        scope: Namespaced
+{{- end }}

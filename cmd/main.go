@@ -48,6 +48,7 @@ import (
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/secretref"
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/thalassa/bucket"
 	"github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/thalassaclient"
+	webhookv1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -99,6 +100,11 @@ func main() {
 	flag.StringVar(&webhookCertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
 	flag.StringVar(&webhookCertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 	flag.StringVar(&webhookCertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
+	var enableWebhooks bool
+	flag.BoolVar(&enableWebhooks, "enable-webhooks", true,
+		"Register admission webhooks (Bucket deleteProtection). "+
+			"Set to false for local development without TLS certs or a ValidatingWebhookConfiguration "+
+			"(deleteProtection will not be enforced). Also disabled when ENABLE_WEBHOOKS=false.")
 	flag.StringVar(&metricsCertPath, "metrics-cert-path", "",
 		"The directory that contains the metrics server certificate.")
 	flag.StringVar(&metricsCertName, "metrics-cert-name", "tls.crt", "The name of the metrics server certificate file.")
@@ -190,6 +196,11 @@ func main() {
 		if v := strings.TrimSpace(os.Getenv("THALASSA_INSECURE")); v == "1" || strings.EqualFold(v, "true") {
 			thalassaInsecure = true
 		}
+	}
+	// ENABLE_WEBHOOKS=false disables webhooks even when --enable-webhooks defaults to true
+	// (Helm chart and local envFile convenience).
+	if v := strings.TrimSpace(os.Getenv("ENABLE_WEBHOOKS")); v == "0" || strings.EqualFold(v, "false") {
+		enableWebhooks = false
 	}
 
 	if thalassaToken != "" {
@@ -387,6 +398,15 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BucketAccess")
 		os.Exit(1)
+	}
+	if enableWebhooks {
+		if err := webhookv1.SetupBucketWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Bucket")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("admission webhooks disabled (--enable-webhooks=false or ENABLE_WEBHOOKS=false); " +
+			"Bucket deleteProtection will not be enforced")
 	}
 	// +kubebuilder:scaffold:builder
 

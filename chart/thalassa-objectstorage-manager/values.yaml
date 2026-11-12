@@ -166,6 +166,20 @@ tolerations: []
 
 affinity: {}
 
+# Validating webhook for Bucket deleteProtection (DELETE-only, failurePolicy Fail).
+# Requires cert-manager when webhook.certManager.enabled is true (default).
+webhook:
+  enabled: true
+  # Container port for the webhook server (controller-runtime default).
+  port: 9443
+  # ValidatingWebhookConfiguration failurePolicy (Fail rejects DELETE when the webhook is down).
+  failurePolicy: Fail
+  certManager:
+    enabled: true
+  tls:
+    # Required when certManager.enabled is false: existing TLS Secret with tls.crt / tls.key.
+    secretName: ""
+
 # Metrics server (controller-runtime defaults to disabled bind address and HTTPS with auth).
 metrics:
   # -- Expose the controller metrics endpoint

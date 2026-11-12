@@ -95,3 +95,21 @@ Comma-separated namespaces for --secret-namespaces (release NS + rbac.secretName
 {{- $namespaces := concat (list .Release.Namespace) (.Values.rbac.secretNamespaces | default list) | compact | uniq -}}
 {{- join "," $namespaces -}}
 {{- end }}
+
+{{/*
+Webhook Service name (admission clientConfig).
+*/}}
+{{- define "objectstorageManager.webhookServiceName" -}}
+{{- printf "%s-webhook" (include "objectstorageManager.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/*
+Webhook TLS Secret name (cert-manager Certificate or user-provided).
+*/}}
+{{- define "objectstorageManager.webhookCertSecretName" -}}
+{{- if and .Values.webhook.enabled (not .Values.webhook.certManager.enabled) .Values.webhook.tls.secretName -}}
+{{- .Values.webhook.tls.secretName -}}
+{{- else -}}
+{{- printf "%s-webhook-tls" (include "objectstorageManager.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end }}

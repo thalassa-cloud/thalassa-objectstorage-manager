@@ -33,6 +33,16 @@ spec:
             - port: "8081"
               protocol: TCP
     {{- end }}
+    {{- if .Values.webhook.enabled }}
+    {{- $webhookPort := .Values.webhook.port | default 9443 }}
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: {{ $webhookPort | quote }}
+              protocol: TCP
+    {{- end }}
     {{- if dig "enabled" true $metrics }}
     {{- $metricsPort := $metrics.port | default .Values.metrics.servicePort | default 8443 }}
     - toPorts:

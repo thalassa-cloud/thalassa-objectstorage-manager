@@ -90,6 +90,7 @@ spec:
   name: app-data
   generateNameSuffix: false # omit or true → app-data-<random>; see status.bucketName
   region: nl-01
+  deleteProtection: true # set false before kubectl delete
 ---
 apiVersion: objectstorage.controllers.thalassa.cloud/v1
 kind: BucketAccess
@@ -103,6 +104,8 @@ spec:
     name: app-data-credentials
   # permissionPreset defaults to ReadWrite
 ```
+
+With `deleteProtection: true`, deletion is rejected by the validating webhook until you patch `spec.deleteProtection=false`. The Helm chart enables the webhook by default and expects cert-manager for TLS (see chart README).
 
 ## Security notes
 
@@ -147,7 +150,7 @@ make test
 make run   # uses current kubeconfig; requires Thalassa flags or .env
 ```
 
-Local debug: copy `.env.example` → `.env`, set organisation + auth, and optionally `CLUSTER_ID` for the kubeconfig preLaunchTask.
+Local debug: copy `.env.example` → `.env`, set organisation + auth, and optionally `CLUSTER_ID` for the kubeconfig preLaunchTask. Use `--enable-webhooks=false` (or `ENABLE_WEBHOOKS=false`) when running locally without webhook TLS / admission config.
 
 ## License
 

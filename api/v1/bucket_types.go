@@ -76,6 +76,12 @@ type BucketSpec struct {
 	// BucketAccess-managed statements use a reserved Sid prefix and are merged by the BucketAccess controller.
 	// +optional
 	Policy string `json:"policy,omitempty"`
+
+	// DeleteProtection, when true, rejects DELETE requests via the validating webhook.
+	// Set to false before deleting the Bucket (then remove the resource as usual).
+	// +optional
+	// +kubebuilder:default=false
+	DeleteProtection bool `json:"deleteProtection,omitempty"`
 }
 
 // BucketUsage reports observed storage usage for the bucket.

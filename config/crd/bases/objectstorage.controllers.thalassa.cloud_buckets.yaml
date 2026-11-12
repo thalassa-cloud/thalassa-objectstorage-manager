@@ -56,6 +56,12 @@ spec:
             description: BucketSpec defines the desired state of a Thalassa object
               storage bucket.
             properties:
+              deleteProtection:
+                default: false
+                description: |-
+                  DeleteProtection, when true, rejects DELETE requests via the validating webhook.
+                  Set to false before deleting the Bucket (then remove the resource as usual).
+                type: boolean
               generateNameSuffix:
                 default: true
                 description: |-

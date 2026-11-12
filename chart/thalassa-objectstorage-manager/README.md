@@ -14,7 +14,7 @@ Configure `thalassa.enabled: true` and one of:
 thalassa:
   enabled: true
   url: "https://api.thalassa.cloud/"
-  organisation: "<ORGANISATION_ID>"
+  organisation: "<ORGANISATION_SLUG_OR_ID>"
   authMethod: tokenExchange
   tokenExchange:
     serviceAccountId: "<THALASSA_SERVICE_ACCOUNT_ID>"
@@ -23,9 +23,24 @@ thalassa:
       audience: "https://api.thalassa.cloud"
 
 defaultRegion: nl-01
+
+# DELETE-only validating webhook for Bucket deleteProtection (requires cert-manager by default)
+webhook:
+  enabled: true
+  certManager:
+    enabled: true
 ```
 
 Set `defaultRegion` (or `thalassa.region`) so Bucket resources can omit `spec.region`.
+
+## Bucket delete protection
+
+`Bucket.spec.deleteProtection: true` blocks `DELETE` until you set it back to `false`. Enforcement uses a validating webhook (`webhook.enabled`, default true).
+
+- Default: cert-manager issues the webhook TLS cert (`webhook.certManager.enabled: true`). Install [cert-manager](https://cert-manager.io/) in the cluster first.
+- Without cert-manager: set `webhook.certManager.enabled=false` and `webhook.tls.secretName` to an existing TLS Secret (`tls.crt` / `tls.key`) whose SANs include the webhook Service DNS names.
+- To disable the webhook entirely: `--set webhook.enabled=false` (passes `--enable-webhooks=false`; delete protection will not be enforced).
+- Local `make run` / IDE: pass `--enable-webhooks=false` or set `ENABLE_WEBHOOKS=false` when you do not have webhook TLS or a ValidatingWebhookConfiguration.
 
 ## Security
 

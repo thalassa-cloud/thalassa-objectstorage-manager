@@ -1,0 +1,7 @@
+resources:
+- issuer.yaml
+- certificate-webhook.yaml
+# certificate-metrics.yaml is optional; enable with metrics TLS separately.
+
+configurations:
+- kustomizeconfig.yaml

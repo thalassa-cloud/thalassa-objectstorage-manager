@@ -1,0 +1,27 @@
+{{- if and .Values.webhook.enabled .Values.webhook.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "objectstorageManager.name" . }}-webhook-selfsigned
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorageManager.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "objectstorageManager.name" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "objectstorageManager.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "objectstorageManager.webhookCertSecretName" . }}
+  dnsNames:
+    - {{ include "objectstorageManager.webhookServiceName" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "objectstorageManager.webhookServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: {{ include "objectstorageManager.name" . }}-webhook-selfsigned
+{{- end }}
