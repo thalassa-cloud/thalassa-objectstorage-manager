@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/thalassa-cloud/client-go/iam"
 	objectstoragev1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/api/v1"
@@ -35,15 +34,15 @@ func TestManagedServiceAccountName(t *testing.T) {
 		{
 			name: "explicit service account name",
 			obj: &objectstoragev1.BucketAccess{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "app", Name: "access"},
-				Spec:       objectstoragev1.BucketAccessSpec{ServiceAccountName: "custom-sa"},
+				Namespace: "app", Name: "access",
+				Spec: objectstoragev1.BucketAccessSpec{ServiceAccountName: "custom-sa"},
 			},
 			want: "custom-sa",
 		},
 		{
 			name: "defaults to namespace-name",
 			obj: &objectstoragev1.BucketAccess{
-				ObjectMeta: metav1.ObjectMeta{Namespace: "app", Name: "access"},
+				Namespace: "app", Name: "access",
 			},
 			want: "app-access",
 		},
@@ -58,7 +57,7 @@ func TestManagedServiceAccountName(t *testing.T) {
 
 func TestPickOwnedServiceAccountID(t *testing.T) {
 	obj := &objectstoragev1.BucketAccess{
-		ObjectMeta: metav1.ObjectMeta{Namespace: "app", Name: "access"},
+		Namespace: "app", Name: "access",
 	}
 	owned := ownershipLabelValue(obj)
 

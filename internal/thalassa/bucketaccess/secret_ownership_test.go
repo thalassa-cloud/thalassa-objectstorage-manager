@@ -33,7 +33,7 @@ func TestSecretOwnedBy(t *testing.T) {
 	uid := types.UID("uid-1")
 	ctrl := true
 	obj := &objectstoragev1.BucketAccess{
-		ObjectMeta: metav1.ObjectMeta{Name: "access", Namespace: "app", UID: uid},
+		Name: "access", Namespace: "app", UID: uid,
 	}
 
 	tests := []struct {
@@ -43,33 +43,30 @@ func TestSecretOwnedBy(t *testing.T) {
 	}{
 		{
 			name:   "unowned secret",
-			secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "s", Namespace: "app"}},
+			secret: &corev1.Secret{Name: "s", Namespace: "app"},
 			want:   false,
 		},
 		{
 			name: "controller ownerRef",
-			secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			secret: &corev1.Secret{
 				Name: "s", Namespace: "app",
 				OwnerReferences: []metav1.OwnerReference{{
 					UID: uid, Kind: "BucketAccess", Controller: &ctrl,
-				}},
-			}},
+				}}},
 			want: true,
 		},
 		{
 			name: "cross-namespace ownership label",
-			secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			secret: &corev1.Secret{
 				Name: "s", Namespace: "secrets",
-				Labels: map[string]string{ownershipLabelKey: "app.access"},
-			}},
+				Labels: map[string]string{ownershipLabelKey: "app.access"}},
 			want: true,
 		},
 		{
 			name: "wrong ownership label",
-			secret: &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			secret: &corev1.Secret{
 				Name: "s", Namespace: "secrets",
-				Labels: map[string]string{ownershipLabelKey: "other.access"},
-			}},
+				Labels: map[string]string{ownershipLabelKey: "other.access"}},
 			want: false,
 		},
 	}
@@ -82,7 +79,7 @@ func TestSecretOwnedBy(t *testing.T) {
 
 func TestServiceAccountOwnedBy(t *testing.T) {
 	obj := &objectstoragev1.BucketAccess{
-		ObjectMeta: metav1.ObjectMeta{Name: "access", Namespace: "app"},
+		Name: "access", Namespace: "app",
 	}
 	tests := []struct {
 		name string

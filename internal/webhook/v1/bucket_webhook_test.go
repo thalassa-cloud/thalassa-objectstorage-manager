@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	objectstoragev1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/api/v1"
 )
@@ -44,15 +43,15 @@ func TestBucketCustomValidator_ValidateDelete(t *testing.T) {
 		{
 			name: "deleteProtection false allows delete",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "app-data", Namespace: "default"},
-				Spec:       objectstoragev1.BucketSpec{DeleteProtection: false},
+				Name: "app-data", Namespace: "default",
+				Spec: objectstoragev1.BucketSpec{DeleteProtection: false},
 			},
 		},
 		{
 			name: "deleteProtection true denies delete",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "app-data", Namespace: "default"},
-				Spec:       objectstoragev1.BucketSpec{DeleteProtection: true},
+				Name: "app-data", Namespace: "default",
+				Spec: objectstoragev1.BucketSpec{DeleteProtection: true},
 			},
 			wantErr: deleteProtectionDeniedMsg,
 		},
@@ -78,8 +77,8 @@ func TestBucketCustomValidator_ValidateCreateAndUpdate(t *testing.T) {
 
 	validator := &BucketCustomValidator{}
 	obj := &objectstoragev1.Bucket{
-		ObjectMeta: metav1.ObjectMeta{Name: "app-data"},
-		Spec:       objectstoragev1.BucketSpec{DeleteProtection: true},
+		Name: "app-data",
+		Spec: objectstoragev1.BucketSpec{DeleteProtection: true},
 	}
 
 	warnings, err := validator.ValidateCreate(context.Background(), obj)

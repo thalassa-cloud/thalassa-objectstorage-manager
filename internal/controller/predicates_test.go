@@ -43,50 +43,47 @@ func TestPrimaryResourcePredicate_Update(t *testing.T) {
 		{
 			name: "status-only update ignored",
 			old: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Generation: 1},
+				Generation: 1,
 				Status:     objectstoragev1.BucketStatus{Endpoint: ""},
 			},
 			new: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Generation: 1},
+				Generation: 1,
 				Status:     objectstoragev1.BucketStatus{Endpoint: "https://s3.example"},
 			},
 			want: false,
 		},
 		{
 			name: "spec generation change triggers",
-			old:  &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
-			new:  &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{Generation: 2}},
+			old:  &objectstoragev1.Bucket{Generation: 1},
+			new:  &objectstoragev1.Bucket{Generation: 2},
 			want: true,
 		},
 		{
 			name: "deletion timestamp triggers",
-			old:  &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
-			new: &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{
+			old:  &objectstoragev1.Bucket{Generation: 1},
+			new: &objectstoragev1.Bucket{
 				Generation:        1,
-				DeletionTimestamp: &now,
-			}},
+				DeletionTimestamp: &now},
 			want: true,
 		},
 		{
 			name: "suspend annotation added triggers",
-			old:  &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
-			new: &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{
+			old:  &objectstoragev1.Bucket{Generation: 1},
+			new: &objectstoragev1.Bucket{
 				Generation: 1,
 				Annotations: map[string]string{
 					thalassahelpers.SuspendAnnotationKey: "true",
-				},
-			}},
+				}},
 			want: true,
 		},
 		{
 			name: "resume suspend removed triggers",
-			old: &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{
+			old: &objectstoragev1.Bucket{
 				Generation: 1,
 				Annotations: map[string]string{
 					thalassahelpers.SuspendAnnotationKey: "true",
-				},
-			}},
-			new:  &objectstoragev1.Bucket{ObjectMeta: metav1.ObjectMeta{Generation: 1}},
+				}},
+			new:  &objectstoragev1.Bucket{Generation: 1},
 			want: true,
 		},
 	}

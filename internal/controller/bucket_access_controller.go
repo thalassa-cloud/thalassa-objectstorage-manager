@@ -22,7 +22,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -127,7 +126,8 @@ func (r *BucketAccessReconciler) mapBucketToAccess(ctx context.Context, obj clie
 		for _, ref := range access.Spec.BucketRefs {
 			if ref.Name == bucket.Name {
 				reqs = append(reqs, reconcile.Request{
-					NamespacedName: types.NamespacedName{Namespace: access.Namespace, Name: access.Name},
+					Namespace: access.Namespace,
+					Name:      access.Name,
 				})
 				break
 			}

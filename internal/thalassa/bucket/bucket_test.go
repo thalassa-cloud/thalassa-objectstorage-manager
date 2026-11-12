@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/thalassa-cloud/client-go/objectstorage"
 	objectstoragev1 "github.com/thalassa-cloud/thalassa-objectstorage-manager/api/v1"
@@ -38,15 +37,15 @@ func TestEffectiveBucketName(t *testing.T) {
 		{
 			name: "spec name wins",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "cr-name"},
-				Spec:       objectstoragev1.BucketSpec{Name: "explicit"},
+				Name: "cr-name",
+				Spec: objectstoragev1.BucketSpec{Name: "explicit"},
 			},
 			want: "explicit",
 		},
 		{
 			name: "metadata name when spec empty",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "cr-name"},
+				Name: "cr-name",
 				Spec: objectstoragev1.BucketSpec{
 					Metadata: &objectstoragev1.ResourceMetadata{Name: &nameOverride},
 				},
@@ -56,7 +55,7 @@ func TestEffectiveBucketName(t *testing.T) {
 		{
 			name: "falls back to object name",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "cr-name"},
+				Name: "cr-name",
 			},
 			want: "cr-name",
 		},
@@ -87,8 +86,8 @@ func TestProvisionedBucketName(t *testing.T) {
 		{
 			name: "empty status with suffix enabled refuses base name",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "logs"},
-				Spec:       objectstoragev1.BucketSpec{Name: "logs", GenerateNameSuffix: &trueVal},
+				Name: "logs",
+				Spec: objectstoragev1.BucketSpec{Name: "logs", GenerateNameSuffix: &trueVal},
 			},
 			want:   "",
 			wantOK: false,
@@ -96,8 +95,8 @@ func TestProvisionedBucketName(t *testing.T) {
 		{
 			name: "empty status with suffix default (true) refuses base name",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "logs"},
-				Spec:       objectstoragev1.BucketSpec{Name: "logs"},
+				Name: "logs",
+				Spec: objectstoragev1.BucketSpec{Name: "logs"},
 			},
 			want:   "",
 			wantOK: false,
@@ -105,8 +104,8 @@ func TestProvisionedBucketName(t *testing.T) {
 		{
 			name: "empty status with suffix disabled uses base name",
 			obj: &objectstoragev1.Bucket{
-				ObjectMeta: metav1.ObjectMeta{Name: "logs"},
-				Spec:       objectstoragev1.BucketSpec{Name: "logs", GenerateNameSuffix: &falseVal},
+				Name: "logs",
+				Spec: objectstoragev1.BucketSpec{Name: "logs", GenerateNameSuffix: &falseVal},
 			},
 			want:   "logs",
 			wantOK: true,

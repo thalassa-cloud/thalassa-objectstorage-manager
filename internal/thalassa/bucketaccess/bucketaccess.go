@@ -554,10 +554,8 @@ func (h *Handler) writeSecret(ctx context.Context, obj *objectstoragev1.BucketAc
 	}
 
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      obj.Spec.WriteSecretToRef.Name,
-			Namespace: secretNS,
-		},
+		Name:      obj.Spec.WriteSecretToRef.Name,
+		Namespace: secretNS,
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, h.Client, secret, func() error {
 		if secret.Data == nil {
