@@ -31,6 +31,17 @@ const (
 	BucketVersioningSuspended BucketVersioning = "Suspended"
 )
 
+// BucketDeletionPolicy controls what happens to the Thalassa bucket when the Kubernetes Bucket is deleted.
+// +kubebuilder:validation:Enum=Delete;Orphan
+type BucketDeletionPolicy string
+
+const (
+	// BucketDeletionPolicyDelete deletes the underlying Thalassa bucket (default).
+	BucketDeletionPolicyDelete BucketDeletionPolicy = "Delete"
+	// BucketDeletionPolicyOrphan leaves the Thalassa bucket in place and only removes the Kubernetes resource.
+	BucketDeletionPolicyOrphan BucketDeletionPolicy = "Orphan"
+)
+
 // BucketSpec defines the desired state of a Thalassa object storage bucket.
 type BucketSpec struct {
 	// Metadata allows optional name and label overrides for the resource in Thalassa.
@@ -82,6 +93,13 @@ type BucketSpec struct {
 	// +optional
 	// +kubebuilder:default=false
 	DeleteProtection bool `json:"deleteProtection,omitempty"`
+
+	// DeletionPolicy controls whether the Thalassa bucket is deleted or left behind when this
+	// Kubernetes Bucket is removed. Delete (default) removes the remote bucket; Orphan only
+	// removes the Kubernetes object. Can be changed before deletion (e.g. set Orphan, then delete).
+	// +optional
+	// +kubebuilder:default=Delete
+	DeletionPolicy BucketDeletionPolicy `json:"deletionPolicy,omitempty"`
 }
 
 // BucketUsage reports observed storage usage for the bucket.

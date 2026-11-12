@@ -62,6 +62,16 @@ spec:
                   DeleteProtection, when true, rejects DELETE requests via the validating webhook.
                   Set to false before deleting the Bucket (then remove the resource as usual).
                 type: boolean
+              deletionPolicy:
+                default: Delete
+                description: |-
+                  DeletionPolicy controls whether the Thalassa bucket is deleted or left behind when this
+                  Kubernetes Bucket is removed. Delete (default) removes the remote bucket; Orphan only
+                  removes the Kubernetes object. Can be changed before deletion (e.g. set Orphan, then delete).
+                enum:
+                - Delete
+                - Orphan
+                type: string
               generateNameSuffix:
                 default: true
                 description: |-

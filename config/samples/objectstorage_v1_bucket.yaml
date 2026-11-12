@@ -17,6 +17,8 @@ spec:
   public: false
   # When true, DELETE is rejected until you set deleteProtection=false.
   deleteProtection: true
+  # Delete (default) removes the Thalassa bucket; Orphan leaves it in place.
+  # deletionPolicy: Orphan
 ---
 # ReadWrite preset (also the default when permissionPreset / permissions omitted)
 apiVersion: objectstorage.controllers.thalassa.cloud/v1

@@ -194,3 +194,25 @@ func TestMergePreservingManagedStatements(t *testing.T) {
 	assert.Equal(t, "user", got.Statement[0].Sid)
 	assert.Equal(t, managedSid, got.Statement[1].Sid)
 }
+
+func TestEffectiveDeletionPolicy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		policy objectstoragev1.BucketDeletionPolicy
+		want   objectstoragev1.BucketDeletionPolicy
+	}{
+		{name: "empty defaults to Delete", policy: "", want: objectstoragev1.BucketDeletionPolicyDelete},
+		{name: "Delete", policy: objectstoragev1.BucketDeletionPolicyDelete, want: objectstoragev1.BucketDeletionPolicyDelete},
+		{name: "Orphan", policy: objectstoragev1.BucketDeletionPolicyOrphan, want: objectstoragev1.BucketDeletionPolicyOrphan},
+		{name: "unknown defaults to Delete", policy: "Retain", want: objectstoragev1.BucketDeletionPolicyDelete},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, EffectiveDeletionPolicy(tt.policy))
+		})
+	}
+}

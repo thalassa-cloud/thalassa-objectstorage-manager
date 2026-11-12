@@ -457,24 +457,52 @@ func (h *Handler) setConditionFromProviderStatus(obj *objectstoragev1.Bucket, st
 	stdconditions.SetStandardConditions(&obj.Status.Conditions, stdconditions.ConditionStateProgressing, "Provisioning", fmt.Sprintf("Bucket status: %s", status))
 }
 
+// EffectiveDeletionPolicy returns the deletion policy to apply. Empty / unknown values
+// default to Delete so existing CRs and defensive coding keep today’s behavior.
+func EffectiveDeletionPolicy(policy objectstoragev1.BucketDeletionPolicy) objectstoragev1.BucketDeletionPolicy {
+	switch policy {
+	case objectstoragev1.BucketDeletionPolicyOrphan:
+		return objectstoragev1.BucketDeletionPolicyOrphan
+	default:
+		return objectstoragev1.BucketDeletionPolicyDelete
+	}
+}
+
 func (h *Handler) Terminate(ctx context.Context, obj *objectstoragev1.Bucket) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	if !controllerutil.ContainsFinalizer(obj, Finalizer) {
 		return ctrl.Result{}, nil
 	}
+
+	policy := EffectiveDeletionPolicy(obj.Spec.DeletionPolicy)
 	name, ok := provisionedBucketName(obj)
-	if ok && name != "" {
-		if err := h.ObjectStorage.DeleteBucket(ctx, name); err != nil && !thalassaclient.IsNotFound(err) {
-			return ctrl.Result{}, err
+
+	switch policy {
+	case objectstoragev1.BucketDeletionPolicyOrphan:
+		if ok && name != "" {
+			log.Info("orphaning Thalassa bucket; skipping remote delete", "name", name)
+			h.Recorder.Eventf(obj, corev1.EventTypeNormal, "Orphaned",
+				"Left Thalassa bucket %s in place (deletionPolicy=Orphan)", name)
+		} else {
+			log.Info("orphaning Bucket; no provisioned Thalassa bucket name to report")
+			h.Recorder.Eventf(obj, corev1.EventTypeNormal, "Orphaned",
+				"Kubernetes Bucket removed without deleting a Thalassa bucket (deletionPolicy=Orphan)")
 		}
-		log.Info("deleted bucket in Thalassa", "name", name)
-		h.Recorder.Eventf(obj, corev1.EventTypeNormal, "Deleted", "Deleted Thalassa bucket %s", name)
-	} else if !ok {
-		// Prefer orphaning an unknown remote bucket over deleting by base name.
-		log.Info("skipping remote bucket delete: status.bucketName empty with generateNameSuffix enabled")
-		h.Recorder.Eventf(obj, corev1.EventTypeWarning, "DeleteSkipped",
-			"Skipped Thalassa bucket delete because status.bucketName is empty and generateNameSuffix is enabled (base name may identify a different bucket)")
+	default:
+		if ok && name != "" {
+			if err := h.ObjectStorage.DeleteBucket(ctx, name); err != nil && !thalassaclient.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+			log.Info("deleted bucket in Thalassa", "name", name)
+			h.Recorder.Eventf(obj, corev1.EventTypeNormal, "Deleted", "Deleted Thalassa bucket %s", name)
+		} else if !ok {
+			// Prefer orphaning an unknown remote bucket over deleting by base name.
+			log.Info("skipping remote bucket delete: status.bucketName empty with generateNameSuffix enabled")
+			h.Recorder.Eventf(obj, corev1.EventTypeWarning, "DeleteSkipped",
+				"Skipped Thalassa bucket delete because status.bucketName is empty and generateNameSuffix is enabled (base name may identify a different bucket)")
+		}
 	}
+
 	if controllerutil.RemoveFinalizer(obj, Finalizer) {
 		if err := h.Client.Update(ctx, obj); err != nil {
 			return ctrl.Result{}, err

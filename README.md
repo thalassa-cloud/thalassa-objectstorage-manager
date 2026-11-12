@@ -91,6 +91,7 @@ spec:
   generateNameSuffix: false # omit or true → app-data-<random>; see status.bucketName
   region: nl-01
   deleteProtection: true # set false before kubectl delete
+  # deletionPolicy: Orphan # default Delete. Orphan leaves the Thalassa bucket behind
 ---
 apiVersion: objectstorage.controllers.thalassa.cloud/v1
 kind: BucketAccess
@@ -107,14 +108,7 @@ spec:
 
 With `deleteProtection: true`, deletion is rejected by the validating webhook until you patch `spec.deleteProtection=false`. The Helm chart enables the webhook by default and expects cert-manager for TLS (see chart README).
 
-## Security notes
-
-- Connection credentials are written only to Kubernetes Secrets.
-- Secret writes are same-namespace by default. Prefer listing tenant namespaces with Helm `--set rbac.secretNamespaces={ns1,ns2}` (release namespace is always included; the chart also passes `--secret-namespaces` so the Secret informer matches those Roles). Only use `--set rbac.clusterScopedSecrets=true` (enables `--allow-all-namespaces-secret-ref` + cluster-wide Secret RBAC) when you intentionally need cross-namespace Secret writes.
-- Existing Secrets are never overwritten unless already owned by the `BucketAccess` (ownerRef or ownership label).
-- Bucket adoption is behind `--feature-gates=BucketAdoption=true` and requires labels on the Thalassa bucket (`objectstorage.controllers.thalassa.cloud/adoptable=true` by default).
-- `permissionPreset` defaults to `ReadWrite`; prefer `ReadOnly` when write access is not needed. Admin actions (`s3:*`, `PutBucketPolicy`, `DeleteBucket`, …) are rejected.
-- Rotate credentials: `kubectl annotate bucketaccess <name> objectstorage.controllers.thalassa.cloud/rotate-credentials=true`
+`spec.deletionPolicy` defaults to `Delete` (remove the Thalassa bucket with the CR). Set `Orphan` to leave the remote bucket in place when the Kubernetes object is deleted.
 
 ## E2E (Kind + live Thalassa API)
 
